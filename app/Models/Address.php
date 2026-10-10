@@ -12,4 +12,17 @@ class Address extends Model
     protected $guarded = [];
 
     public function member() { return $this->belongsTo(Member::class, 'member_id'); }
+
+    public function fullAddress()
+    {
+        $parts = [
+            $this->address_line,
+            $this->subdistrict,
+            $this->district,
+            $this->province,
+            $this->postal_code
+        ];
+        // Filter out empty parts and join with space
+        return implode(' ', array_filter($parts));
+    }
 }

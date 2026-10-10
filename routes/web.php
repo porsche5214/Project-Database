@@ -6,10 +6,6 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-// ตัวอย่าง: ข้อมูลสินค้า (JSON) ไว้เช็คว่า DB ต่อได้ หน้า Blade จริงค่อยทำทีหลัง
-Route::get('/api/products', [\App\Http\Controllers\ProductController::class, 'index']);
-Route::get('/api/products/{id}', [\App\Http\Controllers\ProductController::class, 'show']);
-
 Route::middleware('guest')->group(function () {
     Route::get('/register', [\App\Http\Controllers\AuthController::class, 'showRegister'])->name('register');
     Route::post('/register', [\App\Http\Controllers\AuthController::class, 'register']);
@@ -36,3 +32,5 @@ Route::middleware('auth')->group(function () {
     Route::get('/orders', [\App\Http\Controllers\OrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/{id}', [\App\Http\Controllers\OrderController::class, 'show'])->name('orders.show');
 });
+
+require __DIR__.'/shop.php';

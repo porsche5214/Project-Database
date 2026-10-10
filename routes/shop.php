@@ -7,8 +7,6 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RatingController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\WishlistController;
-use App\Models\Member;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/products', [ProductController::class, 'index'])->name('products.index');
@@ -24,12 +22,3 @@ Route::middleware('auth')->group(function () {
     Route::post('/products/{id}/reviews', [ReviewController::class, 'store'])->whereNumber('id')->name('reviews.store');
     Route::delete('/reviews/{id}', [ReviewController::class, 'destroy'])->whereNumber('id')->name('reviews.destroy');
 });
-
-// ไว้ทดสอบตอนที่หน้า login ของคน A ยังไม่เสร็จ: เปิด /dev/login-as/2 = login เป็น somchai
-// ใช้ได้เฉพาะ APP_ENV=local ลบทิ้งได้เมื่อมี login จริง
-if (app()->environment('local')) {
-    Route::get('/dev/login-as/{id}', function (int $id) {
-        Auth::login(Member::findOrFail($id));
-        return redirect()->route('products.index');
-    })->whereNumber('id');
-}

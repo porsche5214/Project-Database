@@ -5,26 +5,50 @@ namespace App\Models;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-// ใช้แทน User ของ Laravel: Auth::attempt(['email' => ..., 'password' => ...]) จะเช็คกับ password_hash
 class Member extends Authenticatable
 {
     use Notifiable;
 
     protected $table = 'member';
     protected $primaryKey = 'member_id';
-    public $timestamps = false;
+    
+    const UPDATED_AT = null;
 
-    protected $fillable = ['username', 'email', 'password_hash', 'first_name', 'last_name', 'phone', 'role'];
-    protected $hidden = ['password_hash', 'remember_token'];
+    protected $fillable = [
+        'username', 
+        'email', 
+        'password_hash', 
+        'first_name', 
+        'last_name', 
+        'phone'
+    ];
+    
+    protected $hidden = [
+        'password_hash', 
+        'remember_token'
+    ];
 
     protected function casts(): array
     {
-        return ['password_hash' => 'hashed', 'created_at' => 'datetime'];
+        return [
+            'password_hash' => 'hashed', 
+            'created_at' => 'datetime'
+        ];
     }
 
     public function getAuthPasswordName(): string
     {
         return 'password_hash';
+    }
+
+    public function getAuthPassword()
+    {
+        return $this->password_hash;
+    }
+
+    public function getRememberTokenName()
+    {
+        return 'remember_token';
     }
 
     public function isAdmin(): bool

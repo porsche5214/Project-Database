@@ -44,7 +44,7 @@
     @endauth
 </header>
 <main>
-    @if (session('status'))<div class="flash">{{ session('status') }}</div>@endif
+    @if (session('status') || session('success'))<div class="flash">{{ session('status') ?? session('success') }}</div>@endif
     @if ($errors->any())
         <div class="errors">@foreach ($errors->all() as $e)<div>{{ $e }}</div>@endforeach</div>
     @endif

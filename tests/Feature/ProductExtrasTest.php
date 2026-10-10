@@ -12,7 +12,12 @@ class ProductExtrasTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected $seed = true;
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // seed ทุกเทส: RefreshDatabase seed ให้เฉพาะครั้งแรกที่ migrate ถ้าเทสอื่นรันก่อนจะไม่มีข้อมูล
+        $this->seed();
+    }
 
     private function somchai(): Member
     {

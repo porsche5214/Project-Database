@@ -11,6 +11,13 @@ class Order extends Model
     public $timestamps = false;
     protected $guarded = [];
 
-    public function member() { return $this->belongsTo(Member::class, 'member_id'); }
-    public function items() { return $this->hasMany(OrderItem::class, 'order_id'); }
+    public function member()
+    {
+        return $this->belongsTo(Member::class, 'member_id');
+    }
+
+    public function items()
+    {
+        return $this->hasMany(OrderItem::class, 'order_id');
+    }
 }

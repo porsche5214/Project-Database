@@ -2,6 +2,18 @@
 
 namespace App\Http\Controllers;
 
+feature/auth-cart-orders-completed
+use App\Models\Product;
+
+// ตัวอย่าง controller ให้ลอกแบบ: หน้า Products (public)
+class ProductController extends Controller
+{
+    public function index()
+    {
+        return Product::with(['category', 'brand', 'mainImage'])
+            ->orderByDesc('created_at')
+            ->get();
+=======
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
@@ -56,10 +68,16 @@ class ProductController extends Controller
             'filters' => $filters,
             'wishlistIds' => $this->wishlistIds(),
         ]);
+main
     }
 
     public function show(int $id)
     {
+feature/auth-cart-orders-completed
+        return Product::with(['category', 'brand', 'images', 'variants', 'reviews.member:member_id,username'])
+            ->withAvg('ratings', 'score')
+            ->findOrFail($id);
+
         $product = Product::with([
             'category.parent', 'brand', 'images',
             'variants' => fn ($q) => $q->orderBy('color')->orderBy('variant_id'),
@@ -90,5 +108,6 @@ class ProductController extends Controller
         $member = Auth::user();
 
         return $member ? $member->wishlist()->pluck('product.product_id')->all() : [];
+ main
     }
 }

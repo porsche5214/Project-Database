@@ -10,43 +10,10 @@
 
 ---
 
-## ขั้นตอนเริ่มต้น (ทำครั้งเดียว โดยคนที่ 1 คนในกลุ่ม)
+## ขั้นตอนเริ่มต้น
+สร้างโปรเจ็ค Laravel + Sail และ push ขึ้น repo นี้แล้ว สมาชิกทุกคนทำตามหัวข้อถัดไปได้เลย
 
-1. ติดตั้ง Laravel ใหม่ (ใช้ Docker รัน Composer โดยไม่ต้องมี PHP ในเครื่อง):
-   ```bash
-   docker run --rm -v $(pwd):/app composer create-project laravel/laravel ecommerce-app
-   cd ecommerce-app
-   ```
-2. เพิ่ม Laravel Sail และติดตั้ง Docker setup:
-   ```bash
-   docker run --rm -v $(pwd):/var/www/html -w /var/www/html \
-     laravelsail/php84-composer:latest \
-     composer require laravel/sail --dev
-
-   docker run --rm -v $(pwd):/var/www/html -w /var/www/html \
-     laravelsail/php84-composer:latest \
-     php artisan sail:install --with=mysql
-   ```
-   ขั้นตอนนี้จะสร้างไฟล์ `docker-compose.yml` ให้อัตโนมัติ (ไม่ต้องเขียนเอง)
-3. คัดลอกไฟล์ migration จากโฟลเดอร์ `database/migrations` ที่แนบมานี้ ไปวางทับ/เพิ่มใน
-   `ecommerce-app/database/migrations/`
-4. แก้ `.env` ตามไฟล์ `.env.example` ที่แนบมา (ค่า DB ให้ตรงกับที่ Sail ใช้)
-5. เปิดใช้งานและรัน migration:
-   ```bash
-   ./vendor/bin/sail up -d
-   ./vendor/bin/sail artisan key:generate
-   ./vendor/bin/sail artisan migrate
-   ```
-6. สร้าง repo บน GitHub แล้ว push โค้ดเริ่มต้นขึ้นไป:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial Laravel + Sail setup + schema migrations"
-   git branch -M main
-   git remote add origin <URL_REPO_ของคุณ>
-   git push -u origin main
-   ```
-7. เชิญเพื่อนอีก 4 คนเป็น collaborator ใน repo (Settings > Collaborators)
+> **Windows:** Sail ต้องรันใน WSL2 (Ubuntu) ให้ clone repo ไว้ในโฟลเดอร์ของ WSL เช่น `~/Project-Database` แล้วรันทุกคำสั่งใน terminal ของ Ubuntu (Docker Desktop → Settings → Resources → WSL integration เปิด Ubuntu ไว้)
 
 ---
 
@@ -56,7 +23,7 @@
 
 ```bash
 git clone <URL_REPO>
-cd ecommerce-app
+cd Project-Database
 
 # ติดตั้ง dependency ผ่าน Docker (ไม่ต้องมี PHP ในเครื่อง)
 docker run --rm -v $(pwd):/var/www/html -w /var/www/html \
@@ -67,10 +34,13 @@ cp .env.example .env
 
 ./vendor/bin/sail up -d
 ./vendor/bin/sail artisan key:generate
-./vendor/bin/sail artisan migrate
+./vendor/bin/sail artisan migrate --seed   # สร้างตาราง + ข้อมูลตัวอย่าง
 ```
 
-เปิดเบราว์เซอร์ที่ `http://localhost`
+เปิดเบราว์เซอร์ที่ `http://localhost` (ทดสอบ DB: `http://localhost/api/products`)
+ถ้า port 80 ชนกับโปรแกรมอื่น ให้ใส่ `APP_PORT=8000` ใน `.env` แล้วเปิด `http://localhost:8000`
+
+บัญชีตัวอย่างจาก seeder (รหัส `password123`): `admin@naemak.test` (admin), `somchai@naemak.test` (member)
 
 คำสั่งที่ใช้บ่อย (รันแทน `php artisan` / `composer` ตัวเดิม):
 ```bash
@@ -79,7 +49,30 @@ cp .env.example .env
 ./vendor/bin/sail artisan ...    # แทน php artisan
 ./vendor/bin/sail composer ...   # แทน composer
 ./vendor/bin/sail npm ...        # แทน npm
+./vendor/bin/sail artisan migrate:fresh --seed   # ล้าง DB แล้วสร้างใหม่ (หลังมีคนแก้ migration)
 ```
+
+---
+
+## ดูตารางด้วย DBeaver
+1. New Database Connection → MySQL
+2. Host `localhost`, Port `3306`, Database `naemak`, Username `sail`, Password `password` (ตาม `.env`)
+3. แท็บ Driver properties: ตั้ง `allowPublicKeyRetrieval` = `true` และ `useSSL` = `false` (ไม่งั้น MySQL 8 จะ error "Public Key Retrieval is not allowed")
+4. Test Connection → Finish
+5. ดู ER diagram อัตโนมัติ: คลิกขวาที่ database `naemak` → View Diagram (ใช้ประกอบรายงานได้)
+
+ต้องเปิด `sail up -d` ไว้ก่อนเสมอ ถ้าในเครื่องมี MySQL ตัวอื่นใช้ port 3306 อยู่ ให้ตั้ง `FORWARD_DB_PORT=3307` ใน `.env` แล้วใช้ port 3307 ใน DBeaver
+
+---
+
+## Database schema
+migration อยู่ใน `database/migrations/2026_10_10_*` หนึ่งไฟล์ต่อหนึ่งตาราง (14 ตาราง) model อยู่ใน `app/Models/`
+
+- ใช้ตาราง `member` แทน `users` ของ Laravel (model `Member` ใช้กับ `Auth::attempt()` ได้เลย รหัสผ่านเก็บใน `password_hash`)
+- รูปสินค้าแยกเป็นตาราง `product_image` (สินค้าหนึ่งชิ้นมีหลายรูป มี `is_main` บอกรูปหลัก) เพราะ DBML เดิมใส่ไว้ใน `product` ทำให้มี PK สองตัว
+- `rating.score` มี CHECK 1–5
+- ตารางที่ PK เป็น composite (`cart_item`, `order_item`, `wishlist`, `rating`) ให้ update/delete ผ่าน `where(...)->update()/delete()` เพราะ Eloquent ไม่รองรับ composite PK
+- ช่วงพัฒนาแก้ไฟล์ migration เดิมได้ แต่ต้องแจ้งกลุ่มให้ทุกคนรัน `sail artisan migrate:fresh --seed` (ข้อมูลใน DB เครื่องตัวเองจะถูกล้าง)
 
 ---
 

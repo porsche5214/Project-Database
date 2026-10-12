@@ -99,16 +99,24 @@
                 </select>
                 <button class="btn">ให้คะแนน</button>
             </form>
+            @if ($myScore)
+                <form method="POST" action="{{ route('ratings.destroy', $product->product_id) }}" style="margin-top:8px" onsubmit="return confirm('ลบคะแนนของคุณ?')">
+                    @csrf @method('DELETE')
+                    <button class="btn outline" style="padding:2px 10px; font-size:12px">ลบคะแนนของฉัน</button>
+                </form>
+            @endif
         @endauth
     </div>
 
     <div>
         <h2 style="margin-top:0">รีวิว ({{ $product->reviews->count() }})</h2>
         @auth
+            @php($myReview = $product->reviews->firstWhere('member_id', auth()->id()))
             <form method="POST" action="{{ route('reviews.store', $product->product_id) }}" style="margin-bottom:20px">
                 @csrf
-                <textarea name="comment" rows="3" style="width:100%" placeholder="เขียนรีวิวสินค้านี้" required maxlength="1000">{{ old('comment') }}</textarea>
-                <button class="btn" style="margin-top:6px">ส่งรีวิว</button>
+                <div style="margin-bottom:6px">{{ $myReview ? 'รีวิวของคุณ (ส่งใหม่เพื่อแก้ไข):' : 'เขียนรีวิวสินค้านี้:' }}</div>
+                <textarea name="comment" rows="3" style="width:100%" placeholder="เขียนรีวิวสินค้านี้" required maxlength="1000">{{ old('comment', $myReview?->comment) }}</textarea>
+                <button class="btn" style="margin-top:6px">{{ $myReview ? 'อัปเดตรีวิว' : 'ส่งรีวิว' }}</button>
             </form>
         @else
             <p class="muted">

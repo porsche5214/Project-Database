@@ -15,6 +15,10 @@ class WishlistController extends Controller
             ->orderByDesc('wishlist.added_at')
             ->get();
 
+        if ($request->is('api/*') || $request->wantsJson()) {
+            return response()->json($products);
+        }
+
         return view('wishlist.index', ['products' => $products]);
     }
 
@@ -24,12 +28,20 @@ class WishlistController extends Controller
         // PK (member_id, product_id) กันซ้ำอยู่แล้ว: syncWithoutDetaching ไม่ insert ซ้ำ
         $request->user()->wishlist()->syncWithoutDetaching([$id]);
 
+        if ($request->wantsJson()) {
+            return response()->json(['message' => 'เพิ่มลง Wishlist แล้ว'], 200);
+        }
+
         return back()->with('status', 'เพิ่มลง Wishlist แล้ว');
     }
 
     public function destroy(Request $request, int $id)
     {
         $request->user()->wishlist()->detach($id);
+
+        if ($request->wantsJson()) {
+            return response()->json(['message' => 'เอาออกจาก Wishlist แล้ว'], 200);
+        }
 
         return back()->with('status', 'เอาออกจาก Wishlist แล้ว');
     }

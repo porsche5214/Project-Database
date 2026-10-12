@@ -18,7 +18,9 @@ Route::middleware('auth')->group(function () {
     Route::delete('/wishlist/{id}', [WishlistController::class, 'destroy'])->whereNumber('id')->name('wishlist.destroy');
 
     Route::post('/products/{id}/rating', [RatingController::class, 'store'])->whereNumber('id')->name('ratings.store');
+    Route::delete('/products/{id}/rating', [RatingController::class, 'destroy'])->whereNumber('id')->name('ratings.destroy');
 
     Route::post('/products/{id}/reviews', [ReviewController::class, 'store'])->whereNumber('id')->name('reviews.store');
+    Route::match(['put', 'patch'], '/reviews/{id}', [ReviewController::class, 'update'])->whereNumber('id')->name('reviews.update');
     Route::delete('/reviews/{id}', [ReviewController::class, 'destroy'])->whereNumber('id')->name('reviews.destroy');
 });

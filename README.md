@@ -56,7 +56,7 @@ cp .env.example .env
 
 ## ดูตารางด้วย DBeaver
 1. New Database Connection → MySQL
-2. Host `localhost`, Port `3306`, Database `naemak`, Username `sail`, Password `password` (ตาม `.env`)
+2. Host `localhost`, Port `3306`, Database `ecommerce_project`, Username `sail`, Password `password` (ตาม `.env`)
 3. แท็บ Driver properties: ตั้ง `allowPublicKeyRetrieval` = `true` และ `useSSL` = `false` (ไม่งั้น MySQL 8 จะ error "Public Key Retrieval is not allowed")
 4. Test Connection → Finish
 5. ดู ER diagram อัตโนมัติ: คลิกขวาที่ database `naemak` → View Diagram (ใช้ประกอบรายงานได้)

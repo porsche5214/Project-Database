@@ -19,6 +19,24 @@ class RatingController extends Controller
             ['score' => $data['score'], 'rated_at' => now()],
         );
 
+        if ($request->wantsJson()) {
+            return response()->json(['message' => 'บันทึกคะแนนแล้ว'], 200);
+        }
+
         return back()->with('status', 'บันทึกคะแนนแล้ว');
+    }
+
+    public function destroy(Request $request, int $id)
+    {
+        Product::findOrFail($id);
+        Rating::where('member_id', $request->user()->member_id)
+            ->where('product_id', $id)
+            ->delete();
+
+        if ($request->wantsJson()) {
+            return response()->json(['message' => 'ลบคะแนนแล้ว'], 200);
+        }
+
+        return back()->with('status', 'ลบคะแนนแล้ว');
     }
 }

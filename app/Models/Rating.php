@@ -12,7 +12,23 @@ class Rating extends Model
     protected $primaryKey = null;
     public $incrementing = false;
     public $timestamps = false;
-    protected $guarded = [];
+
+    protected $fillable = [
+        'member_id',
+        'product_id',
+        'score',
+        'rated_at',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'member_id' => 'integer',
+            'product_id' => 'integer',
+            'score' => 'integer',
+            'rated_at' => 'datetime',
+        ];
+    }
 
     public function member() { return $this->belongsTo(Member::class, 'member_id'); }
     public function product() { return $this->belongsTo(Product::class, 'product_id'); }

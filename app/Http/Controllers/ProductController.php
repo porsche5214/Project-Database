@@ -2,18 +2,6 @@
 
 namespace App\Http\Controllers;
 
-feature/auth-cart-orders-completed
-use App\Models\Product;
-
-// ตัวอย่าง controller ให้ลอกแบบ: หน้า Products (public)
-class ProductController extends Controller
-{
-    public function index()
-    {
-        return Product::with(['category', 'brand', 'mainImage'])
-            ->orderByDesc('created_at')
-            ->get();
-=======
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
@@ -31,6 +19,7 @@ class ProductController extends Controller
             'gender' => ['nullable', 'in:male,female,unisex'],
             'q' => ['nullable', 'string', 'max:100'],
             'sort' => ['nullable', 'in:newest,price_asc,price_desc,rating'],
+            'in_stock' => ['nullable', 'boolean'],
         ]);
 
         $query = Product::with(['category', 'brand', 'mainImage'])
@@ -53,6 +42,9 @@ class ProductController extends Controller
         if (! empty($filters['q'])) {
             $query->where('name', 'like', '%'.$filters['q'].'%');
         }
+        if ($request->boolean('in_stock')) {
+            $query->whereHas('variants', fn ($q) => $q->where('stock', '>', 0));
+        }
 
         match ($filters['sort'] ?? 'newest') {
             'price_asc' => $query->orderBy('base_price'),
@@ -61,6 +53,10 @@ class ProductController extends Controller
             default => $query->orderByDesc('created_at')->orderByDesc('product_id'),
         };
 
+        if ($request->is('api/*') || $request->wantsJson()) {
+            return response()->json($query->paginate(12)->withQueryString());
+        }
+
         return view('products.index', [
             'products' => $query->paginate(12)->withQueryString(),
             'categories' => Category::with('children')->whereNull('parent_category_id')->orderBy('name')->get(),
@@ -68,18 +64,14 @@ class ProductController extends Controller
             'filters' => $filters,
             'wishlistIds' => $this->wishlistIds(),
         ]);
-main
     }
 
-    public function show(int $id)
+    public function show(Request $request, int $id)
     {
-feature/auth-cart-orders-completed
-        return Product::with(['category', 'brand', 'images', 'variants', 'reviews.member:member_id,username'])
-            ->withAvg('ratings', 'score')
-            ->findOrFail($id);
-
         $product = Product::with([
-            'category.parent', 'brand', 'images',
+            'category.parent',
+            'brand',
+            'images',
             'variants' => fn ($q) => $q->orderBy('color')->orderBy('variant_id'),
             'reviews' => fn ($q) => $q->with('member:member_id,username')->orderByDesc('created_at'),
         ])
@@ -87,14 +79,21 @@ feature/auth-cart-orders-completed
             ->withCount('ratings')
             ->findOrFail($id);
 
+        if ($request->is('api/*') || $request->wantsJson()) {
+            return response()->json($product);
+        }
+
         $member = Auth::user();
 
         return view('products.show', [
             'product' => $product,
             // ข้อมูลให้ JS ใช้เลือกสี -> ไซซ์
             'variantData' => $product->variants->map(fn ($v) => [
-                'id' => $v->variant_id, 'color' => $v->color, 'size' => $v->size,
-                'price' => (float) $v->price, 'stock' => $v->stock,
+                'id' => $v->variant_id,
+                'color' => $v->color,
+                'size' => $v->size,
+                'price' => (float) $v->price,
+                'stock' => $v->stock,
             ])->values(),
             'myScore' => $member ? $product->ratings()->where('member_id', $member->member_id)->value('score') : null,
             'inWishlist' => in_array($product->product_id, $this->wishlistIds()),
@@ -108,6 +107,5 @@ feature/auth-cart-orders-completed
         $member = Auth::user();
 
         return $member ? $member->wishlist()->pluck('product.product_id')->all() : [];
- main
     }
 }

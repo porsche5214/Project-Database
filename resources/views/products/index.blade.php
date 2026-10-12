@@ -3,7 +3,7 @@
 @section('title', 'สินค้า - NaeMak')
 
 @section('content')
-<form method="GET" action="{{ route('products.index') }}" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px">
+<form method="GET" action="{{ route('products.index') }}" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:20px">
     <input type="text" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="ค้นหาชื่อสินค้า">
 
     <select name="category">
@@ -35,6 +35,10 @@
             <option value="{{ $value }}" @selected(($filters['sort'] ?? 'newest') === $value)>{{ $label }}</option>
         @endforeach
     </select>
+
+    <label style="display:flex; align-items:center; gap:4px; font-size:14px; margin-left:4px">
+        <input type="checkbox" name="in_stock" value="1" @checked(!empty($filters['in_stock']))> เฉพาะที่มีของ
+    </label>
 
     <button class="btn">กรอง</button>
     <a href="{{ route('products.index') }}" class="btn outline">ล้าง</a>

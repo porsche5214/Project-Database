@@ -16,6 +16,7 @@ return new class extends Migration
             $table->text('comment');
             $table->dateTime('created_at')->useCurrent();
 
+            $table->unique(['member_id', 'product_id']);
             $table->foreign('member_id')->references('member_id')->on('member')->cascadeOnDelete();
             $table->foreign('product_id')->references('product_id')->on('product')->cascadeOnDelete();
         });

@@ -1,0 +1,10 @@
+{
+  "description": "A minimalist fashion e-commerce platform offering curated clothing and accessories with seamless browsing, personalized accounts, and secure checkout.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

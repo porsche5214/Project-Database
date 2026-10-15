@@ -1,4 +1,5 @@
 import { productsApi, type ProductDetail } from "./api/products";
+import { cartApi } from "./api/cart";
 import { authApi, mapUserToMemberInfo } from "./api/auth";
 import { api } from "./api/client";
 import { ReactNode, useEffect, useMemo, useState } from "react";
@@ -92,6 +93,34 @@ function ShopLayout() {
   const [query, setQuery] = useState("");
   const [toast, setToast] = useState("");
   const [allProducts, setAllProducts] = useState<Product[]>(initialMockProducts);
+  useEffect(() => {
+    if (loggedIn) {
+      cartApi.get().then((res) => {
+        if (res && res.items) {
+          const apiItems: CartItem[] = res.items.map((it) => ({
+            product: {
+              id: it.product_id,
+              name: it.name,
+              brand: it.brand,
+              price: it.price,
+              category: "",
+              gender: "",
+              rating: 5,
+              reviews: 0,
+              image: it.image,
+              colors: [it.color],
+              sizes: [it.size],
+            },
+            qty: it.quantity,
+            color: it.color,
+            size: it.size,
+          }));
+          setCart(apiItems);
+        }
+      }).catch(() => {});
+    }
+  }, [loggedIn]);
+
 
   useEffect(() => {
     productsApi.list().then((list) => {
@@ -137,6 +166,9 @@ function ShopLayout() {
         ? items.map((item) => cartItemKey(item) === nextKey ? {...item, qty: item.qty + quantity} : item)
         : [...items, nextItem];
     });
+    if (loggedIn) {
+      cartApi.add({ product_id: p.id, color, size, quantity }).catch(() => {});
+    }
     flash(`${p.name} added to bag`);
   };
   const submitReview = (productId: number, review: Pick<ProductReview, "title" | "text" | "rating">) => {
@@ -206,8 +238,23 @@ function WishlistRoute() {
 }
 
 function CartRoute() {
-  const { cart, go, setCart } = useShop();
-  return <CartPage items={cart} go={go} remove={(key) => setCart((items) => items.filter((item) => cartItemKey(item) !== key))} updateQty={(key,difference) => setCart((items) => items.map((item) => cartItemKey(item) === key ? {...item, qty: Math.max(1, item.qty+difference)} : item))}/>;
+  const { cart, go, setCart, loggedIn } = useShop();
+  const handleRemove = (key: string) => {
+    const itemToRemove = cart.find((item) => cartItemKey(item) === key);
+    setCart((items) => items.filter((item) => cartItemKey(item) !== key));
+    if (loggedIn && itemToRemove) {
+      cartApi.remove(0, { product_id: itemToRemove.product.id, color: itemToRemove.color, size: itemToRemove.size }).catch(() => {});
+    }
+  };
+  const handleUpdate = (key: string, difference: number) => {
+    const itemToUpdate = cart.find((item) => cartItemKey(item) === key);
+    const newQty = Math.max(1, (itemToUpdate?.qty || 1) + difference);
+    setCart((items) => items.map((item) => cartItemKey(item) === key ? {...item, qty: newQty} : item));
+    if (loggedIn && itemToUpdate) {
+      cartApi.update(0, newQty, { product_id: itemToUpdate.product.id, color: itemToUpdate.color, size: itemToUpdate.size }).catch(() => {});
+    }
+  };
+  return <CartPage items={cart} go={go} remove={handleRemove} updateQty={handleUpdate}/>;
 }
 
 function CheckoutRoute() {

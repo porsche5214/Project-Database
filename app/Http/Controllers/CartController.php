@@ -2,23 +2,23 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CartItem;
+use App\Services\CartService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Models\Cart;
-use App\Models\CartItem;
-use App\Models\ProductVariant;
 
 class CartController extends Controller
 {
-    private function getCart()
+    protected CartService $cartService;
+
+    public function __construct(CartService $cartService)
     {
-        return Cart::firstOrCreate(['member_id' => Auth::id()]);
+        $this->cartService = $cartService;
     }
 
     public function index()
     {
-        $cart = $this->getCart();
-        // Assume variant model has price. We load variants to calculate totals.
+        $cart = $this->cartService->getCartForMember(Auth::id());
         $items = CartItem::where('cart_id', $cart->cart_id)->with('variant')->get();
 
         $grandTotal = 0;
@@ -41,34 +41,7 @@ class CartController extends Controller
             'quantity' => 'required|integer|min:1',
         ]);
 
-        $variant = ProductVariant::findOrFail($request->variant_id);
-        
-        $cart = $this->getCart();
-        $cartItem = CartItem::where('cart_id', $cart->cart_id)
-            ->where('variant_id', $request->variant_id)
-            ->first();
-
-        $requestedQuantity = $request->quantity;
-        if ($cartItem) {
-            $requestedQuantity += $cartItem->quantity;
-        }
-
-        // Basic stock check
-        if ($variant->stock < $requestedQuantity) {
-            return back()->withErrors(['quantity' => 'Not enough stock.']);
-        }
-
-        if ($cartItem) {
-            CartItem::where('cart_id', $cart->cart_id)
-                ->where('variant_id', $request->variant_id)
-                ->update(['quantity' => $requestedQuantity]);
-        } else {
-            CartItem::insert([
-                'cart_id' => $cart->cart_id,
-                'variant_id' => $request->variant_id,
-                'quantity' => $request->quantity,
-            ]);
-        }
+        $this->cartService->addItem(Auth::id(), (int) $request->variant_id, (int) $request->quantity);
 
         return back()->with('success', 'Added to cart');
     }
@@ -79,41 +52,21 @@ class CartController extends Controller
             'quantity' => 'required|integer|min:1',
         ]);
 
-        $cart = $this->getCart();
-        $cartItem = CartItem::where('cart_id', $cart->cart_id)
-            ->where('variant_id', $variant_id)
-            ->first();
-
-        if (!$cartItem) {
-            return back()->withErrors(['msg' => 'Item not in cart.']);
-        }
-
-        $variant = ProductVariant::findOrFail($variant_id);
-        if ($variant->stock < $request->quantity) {
-            return back()->withErrors(['quantity' => 'Not enough stock.']);
-        }
-
-        CartItem::where('cart_id', $cart->cart_id)
-            ->where('variant_id', $variant_id)
-            ->update(['quantity' => $request->quantity]);
+        $this->cartService->updateQuantity(Auth::id(), (int) $variant_id, (int) $request->quantity);
 
         return back()->with('success', 'Cart updated');
     }
 
     public function remove($variant_id)
     {
-        $cart = $this->getCart();
-        CartItem::where('cart_id', $cart->cart_id)
-            ->where('variant_id', $variant_id)
-            ->delete();
+        $this->cartService->removeItem(Auth::id(), (int) $variant_id);
 
         return back()->with('success', 'Item removed');
     }
 
     public function clear()
     {
-        $cart = $this->getCart();
-        CartItem::where('cart_id', $cart->cart_id)->delete();
+        $this->cartService->clearCart(Auth::id());
 
         return back()->with('success', 'Cart cleared');
     }

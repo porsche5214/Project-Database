@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\CartController;
 use Illuminate\Support\Facades\Route;
 
 // Guest Auth
@@ -17,6 +18,13 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::match(['put', 'patch', 'post'], '/profile', [ProfileController::class, 'update']);
     Route::post('/profile/address', [ProfileController::class, 'saveAddress']);
+
+    // Cart
+    Route::get('/cart', [CartController::class, 'index']);
+    Route::post('/cart/add', [CartController::class, 'add']);
+    Route::post('/cart/update/{variant_id}', [CartController::class, 'update']);
+    Route::post('/cart/remove/{variant_id}', [CartController::class, 'remove']);
+    Route::post('/cart/clear', [CartController::class, 'clear']);
 });
 
 // Products

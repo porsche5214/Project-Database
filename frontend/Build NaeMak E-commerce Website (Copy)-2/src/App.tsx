@@ -1,6 +1,7 @@
 import { productsApi, type ProductDetail } from "./api/products";
 import { cartApi } from "./api/cart";
 import { wishlistApi } from "./api/wishlist";
+import { ordersApi, type ApiOrder } from "./api/orders";
 import { authApi, mapUserToMemberInfo } from "./api/auth";
 import { api } from "./api/client";
 import { ReactNode, useEffect, useMemo, useState } from "react";
@@ -36,6 +37,8 @@ type ShopContext = {
   cards: (list: Product[]) => ReactNode[];
   filtered: Product[];
   allProducts: Product[];
+  lastOrder: ApiOrder | null;
+  setLastOrder: React.Dispatch<React.SetStateAction<ApiOrder | null>>;
   go: (page: Page) => void;
   loggedIn: boolean;
   memberInfo: MemberInfo;
@@ -94,6 +97,7 @@ function ShopLayout() {
   const [loggedIn, setLoggedIn] = useStoredState("naemak:logged-in", false);
   const [query, setQuery] = useState("");
   const [toast, setToast] = useState("");
+  const [lastOrder, setLastOrder] = useStoredState<ApiOrder | null>("naemak:last-order", null);
   const [allProducts, setAllProducts] = useState<Product[]>(initialMockProducts);
   useEffect(() => {
     if (loggedIn) {
@@ -204,7 +208,7 @@ function ShopLayout() {
   const filtered = useMemo(() => allProducts.filter((p) => p.name.toLowerCase().includes(query.toLowerCase())), [query, allProducts]);
   const cards = (list: Product[]) => list.map((p) => <ProductCard key={p.id} product={p} wishlisted={wishlist.includes(p.id)} onWish={() => toggleWish(p.id)} onView={() => view(p)} onAdd={() => add(p)}/>);
   const context: ShopContext = {
-    add, allProducts, cart, cards, filtered, go, loggedIn, memberInfo, query, reviews, setCart, setLoggedIn,
+    add, allProducts, cart, cards, filtered, go, lastOrder, setLastOrder, loggedIn, memberInfo, query, reviews, setCart, setLoggedIn,
     setMemberInfo, setQuery, submitReview, toggleWish, view, wishlist,
   };
 
@@ -276,14 +280,48 @@ function CartRoute() {
 }
 
 function CheckoutRoute() {
-  const { cart, go, loggedIn, memberInfo, setMemberInfo } = useShop();
+  const { cart, go, loggedIn, memberInfo, setMemberInfo, setCart, setLastOrder } = useShop();
   if (!cart.length) return <Navigate to="/cart" replace/>;
-  return <CheckoutPage items={cart} go={go} loggedIn={loggedIn} memberInfo={memberInfo} onSaveInfo={setMemberInfo}/>;
+
+  const handlePlaceOrder = async (info: MemberInfo, payment: string, saveAddress: boolean) => {
+    if (loggedIn) {
+      const res = await ordersApi.checkout({
+        firstName: info.firstName,
+        lastName: info.lastName,
+        email: info.email,
+        phone: info.phone,
+        address: info.address,
+        city: info.city,
+        province: info.province,
+        postalCode: info.postalCode,
+        country: info.country,
+        saveAddress,
+        payment_method: payment,
+      });
+      if (res && res.order) {
+        setLastOrder(res.order);
+      }
+      setCart([]);
+      go("confirmed");
+    } else {
+      if (saveAddress) setMemberInfo(info);
+      setCart([]);
+      go("confirmed");
+    }
+  };
+
+  return <CheckoutPage items={cart} go={go} loggedIn={loggedIn} memberInfo={memberInfo} onSaveInfo={setMemberInfo} onPlaceOrder={handlePlaceOrder}/>;
 }
 
 function ConfirmationRoute() {
-  const { cart, go } = useShop();
-  return <main><section className="confirmation"><i><Icon name="check" size={36}/></i><span className="eyebrow">THANK YOU, ARAYA</span><h1>ORDER PLACED<br/>SUCCESSFULLY.</h1><p>Your order <b>#NM-250621-0914</b> is confirmed.<br/>We’ll let you know when it’s on its way.</p><div><span>ORDER DATE <b>21 JUN 2025</b></span><span>TOTAL <b>฿{cart.reduce((sum,item)=>sum+item.product.price*item.qty,0).toLocaleString()}</b></span><span>STATUS <b>PAID</b></span></div><Button onClick={() => go("account")}>VIEW MY ORDERS</Button></section></main>;
+  const { cart, go, lastOrder, memberInfo } = useShop();
+  const orderNum = lastOrder ? `#${lastOrder.order_number}` : "#NM-250621-0914";
+  const orderDate = lastOrder ? lastOrder.formatted_date : "21 JUN 2025";
+  const orderTotal = lastOrder ? lastOrder.total_amount : cart.reduce((sum,item)=>sum+item.product.price*item.qty,0);
+  const orderStatus = lastOrder ? lastOrder.status.toUpperCase() : "PAID";
+  const recipientName = lastOrder?.ship_name ? lastOrder.ship_name.toUpperCase() : (memberInfo.firstName ? memberInfo.firstName.toUpperCase() : "ARAYA");
+
+  return <main><section className="confirmation"><i><Icon name="check" size={36}/></i><span className="eyebrow">THANK YOU, {recipientName}</span><h1>ORDER PLACED<br/>SUCCESSFULLY.</h1><p>Your order <b>{orderNum}</b> is confirmed.<br/>We’ll let you know when it’s on its way.</p><div><span>ORDER DATE <b>{orderDate}</b></span><span>TOTAL <b>฿{Number(orderTotal).toLocaleString()}</b></span><span>STATUS <b>{orderStatus}</b></span></div><Button onClick={() => go("account")}>VIEW MY ORDERS</Button></section></main>;
 }
 
 function LoginRoute() {

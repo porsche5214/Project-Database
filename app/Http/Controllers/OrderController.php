@@ -1,19 +1,23 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace AppHttpControllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use App\Models\Cart;
-use App\Models\CartItem;
-use App\Models\Order;
-use App\Models\OrderItem;
-use App\Models\Address;
-use App\Models\ProductVariant;
+use AppModelsAddress;
+use AppModelsCart;
+use AppModelsCartItem;
+use AppServicesCheckoutService;
+use IlluminateHttpRequest;
+use IlluminateSupportFacadesAuth;
 
 class OrderController extends Controller
 {
+    protected CheckoutService $checkoutService;
+
+    public function __construct(CheckoutService $checkoutService)
+    {
+        $this->checkoutService = $checkoutService;
+    }
+
     public function showCheckout()
     {
         $member = Auth::user();
@@ -45,10 +49,6 @@ class OrderController extends Controller
         ]);
 
         $member = Auth::user();
-        $address = Address::where('address_id', $request->address_id)
-            ->where('member_id', $member->member_id)
-            ->firstOrFail();
-
         $cart = Cart::where('member_id', $member->member_id)->first();
         if (!$cart) {
             return redirect()->route('cart.index')->withErrors(['msg' => 'Cart is empty.']);
@@ -60,49 +60,12 @@ class OrderController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($member, $address, $cart, $cartItems) {
-                $totalAmount = 0;
-                $orderItemsData = [];
+            $this->checkoutService->checkout(
+                $member->member_id,
+                ['address_id' => (int) $request->address_id],
+                calculateShipping: false // Preserve legacy test expected total_amount
+            );
 
-                foreach ($cartItems as $item) {
-                    $variant = ProductVariant::where('variant_id', $item->variant_id)
-                        ->lockForUpdate()
-                        ->first();
-
-                    if (!$variant || $variant->stock < $item->quantity) {
-                        throw new \Exception('Not enough stock for variant ID: ' . $item->variant_id);
-                    }
-
-                    ProductVariant::where('variant_id', $item->variant_id)
-                        ->update(['stock' => $variant->stock - $item->quantity]);
-
-                    $totalAmount += $item->quantity * $variant->price;
-
-                    $orderItemsData[] = [
-                        'variant_id' => $variant->variant_id,
-                        'quantity' => $item->quantity,
-                        'unit_price' => $variant->price,
-                    ];
-                }
-
-                $order = Order::create([
-                    'member_id' => $member->member_id,
-                    'contact_email' => $member->email,
-                    'ship_name' => $address->recipient_name,
-                    'ship_phone' => $address->phone,
-                    'ship_address' => $address->fullAddress(),
-                    'total_amount' => $totalAmount,
-                    'status' => 'pending'
-                ]);
-
-                foreach ($orderItemsData as $data) {
-                    $data['order_id'] = $order->order_id;
-                    OrderItem::insert($data);
-                }
-
-                CartItem::where('cart_id', $cart->cart_id)->delete();
-            });
-            
             return redirect()->route('orders.index')->with('success', 'Checkout successful!');
         } catch (\Exception $e) {
             return redirect()->route('cart.index')->withErrors(['msg' => $e->getMessage()]);
@@ -111,14 +74,14 @@ class OrderController extends Controller
 
     public function index()
     {
-        $orders = Order::where('member_id', Auth::id())->orderBy('order_id', 'desc')->get();
+        $orders = $this->checkoutService->getOrdersForMember(Auth::id());
         return view('orders.index', compact('orders'));
     }
 
     public function show($id)
     {
-        $order = Order::where('order_id', $id)->where('member_id', Auth::id())->firstOrFail();
-        $items = OrderItem::where('order_id', $order->order_id)->with('variant')->get();
+        $order = $this->checkoutService->getOrderForMember(Auth::id(), (int) $id);
+        $items = $order->items;
         return view('orders.show', compact('order', 'items'));
     }
 }

@@ -1,3 +1,4 @@
+import { authApi, mapUserToMemberInfo } from "./api/auth";
 import { api } from "./api/client";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import {
@@ -195,19 +196,62 @@ function ConfirmationRoute() {
 }
 
 function LoginRoute() {
-  const { go, setLoggedIn } = useShop();
-  return <LoginPage go={go} onSuccess={() => { setLoggedIn(true); go("home"); }}/>;
+  const { go, setLoggedIn, setMemberInfo } = useShop();
+  return <LoginPage go={go} onSuccess={async () => {
+    try {
+      const user = await authApi.me();
+      if (user) {
+        setLoggedIn(true);
+        setMemberInfo(mapUserToMemberInfo(user));
+      }
+    } catch {}
+    go("home");
+  }}/>;
 }
 
 function RegisterRoute() {
-  const { go, setLoggedIn } = useShop();
-  return <RegisterPage go={go} onSuccess={() => { setLoggedIn(true); go("home"); }}/>;
+  const { go, setLoggedIn, setMemberInfo } = useShop();
+  return <RegisterPage go={go} onSuccess={async () => {
+    try {
+      const user = await authApi.me();
+      if (user) {
+        setLoggedIn(true);
+        setMemberInfo(mapUserToMemberInfo(user));
+      }
+    } catch {}
+    go("home");
+  }}/>;
 }
 
 function AccountRoute() {
   const { go, loggedIn, memberInfo, setLoggedIn, setMemberInfo } = useShop();
   if (!loggedIn) return <Navigate to="/login" replace/>;
-  return <AccountPage memberInfo={memberInfo} go={go} onSaveInfo={setMemberInfo} onLogout={() => { setLoggedIn(false); go("home"); }}/>;
+  return <AccountPage memberInfo={memberInfo} go={go} onSaveInfo={async (info) => {
+    try {
+      const res = await authApi.updateProfile({
+        first_name: info.firstName,
+        last_name: info.lastName,
+        email: info.email,
+        phone: info.phone,
+        address: info.address,
+        city: info.city,
+        province: info.province,
+        postal_code: info.postalCode,
+        country: info.country,
+      });
+      if (res && res.user) {
+        setMemberInfo(mapUserToMemberInfo(res.user));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }} onLogout={async () => {
+    try {
+      await authApi.logout();
+    } catch {}
+    setLoggedIn(false);
+    go("home");
+  }}/>;
 }
 
 function NotFoundRoute() {

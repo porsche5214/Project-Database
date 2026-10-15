@@ -6,9 +6,11 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-// ข้อมูลสินค้า (JSON)
-Route::get('/api/products', [\App\Http\Controllers\ProductController::class, 'index']);
-Route::get('/api/products/{id}', [\App\Http\Controllers\ProductController::class, 'show']);
+// React Storefront
+Route::get('/shop/{any?}', [\App\Http\Controllers\ShopController::class, 'index'])->where('any', '.*')->name('shop');
+
+// API routes with web middleware group (session + CSRF)
+Route::prefix('api')->middleware('web')->group(base_path('routes/api.php'));
 
 Route::middleware('guest')->group(function () {
     Route::get('/register', [\App\Http\Controllers\AuthController::class, 'showRegister'])->name('register');

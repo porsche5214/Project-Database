@@ -1,3 +1,4 @@
+import { api } from "./api/client";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import {
   createBrowserRouter,
@@ -89,6 +90,26 @@ function ShopLayout() {
   const [query, setQuery] = useState("");
   const [toast, setToast] = useState("");
   const [memberInfo, setMemberInfo] = useStoredState<MemberInfo>("naemak:member", { email:"araya@naemak.com", phone:"+66 81 234 5678", firstName:"Araya", lastName:"Siriporn", address:"88 Sukhumvit Road, Khlong Toei", city:"Bangkok", province:"Bangkok", postalCode:"10110", country:"Thailand" });
+  useEffect(() => {
+    api.get('/me').then((user) => {
+      if (user) {
+        setLoggedIn(true);
+        setMemberInfo({
+          email: user.email || "",
+          phone: user.phone || "",
+          firstName: user.first_name || "",
+          lastName: user.last_name || "",
+          address: user.default_address?.address_line || "",
+          city: user.default_address?.district || "",
+          province: user.default_address?.province || "",
+          postalCode: user.default_address?.postal_code || "",
+          country: "Thailand",
+        });
+      } else {
+        setLoggedIn(false);
+      }
+    }).catch(() => {});
+  }, []);
   const go = (page: Page) => { navigate(pagePaths[page]); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const flash = (s: string) => { setToast(s); window.setTimeout(() => setToast(""), 2400); };
   const view = (product: Product) => { navigate(`/products/${product.id}`); window.scrollTo({ top: 0, behavior: "smooth" }); };
@@ -212,7 +233,7 @@ const router = createBrowserRouter([
       { path: "*", Component: NotFoundRoute },
     ],
   },
-]);
+], { basename: import.meta.env.BASE_URL });
 
 export default function App() {
   return <RouterProvider router={router}/>;

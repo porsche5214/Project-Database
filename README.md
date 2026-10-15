@@ -112,3 +112,23 @@ migration อยู่ใน `database/migrations/2026_10_10_*` หนึ่ง�
 3. Low-fidelity prototype
 4. ไฟล์พรีเซนเทชัน
 5. Source code
+
+
+---
+
+## วิธี build frontend
+โปรเจกต์ frontend อยู่ที่โฟลเดอร์ `frontend/Build NaeMak E-commerce Website (Copy)-2/` (React + Vite + TypeScript)
+สามารถติดตั้ง dependencies และ build ผ่าน Docker / Sail โดยไม่ต้องติดตั้ง Node/pnpm บนเครื่อง host:
+
+```bash
+# 1. ติดตั้ง dependencies ใน frontend ผ่าน Sail
+./vendor/bin/sail npx pnpm --prefix "frontend/Build NaeMak E-commerce Website (Copy)-2" install
+
+# 2. Build frontend (ไฟล์จะถูกส่งไปที่ public/shop/)
+./vendor/bin/sail npx pnpm --prefix "frontend/Build NaeMak E-commerce Website (Copy)-2" build
+
+# หรือหากต้องการรัน Vite dev server พร้อม proxy /api
+./vendor/bin/sail npx pnpm --prefix "frontend/Build NaeMak E-commerce Website (Copy)-2" dev --host
+```
+
+> **หมายเหตุ:** ผลลัพธ์ build ใน `public/shop/` ถูกกำหนดไว้ใน `.gitignore` เรียบร้อยแล้ว ห้าม commit ลง Git

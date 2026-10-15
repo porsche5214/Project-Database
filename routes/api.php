@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\CartController;
+use App\Http\Controllers\Api\WishlistController;
 use Illuminate\Support\Facades\Route;
 
 // Guest Auth
@@ -25,6 +26,13 @@ Route::middleware('auth')->group(function () {
     Route::post('/cart/update/{variant_id}', [CartController::class, 'update']);
     Route::post('/cart/remove/{variant_id}', [CartController::class, 'remove']);
     Route::post('/cart/clear', [CartController::class, 'clear']);
+
+    // Wishlist
+    Route::get('/wishlist', [WishlistController::class, 'index']);
+    Route::post('/wishlist/{id}', [WishlistController::class, 'store'])->whereNumber('id');
+    Route::delete('/wishlist/{id}', [WishlistController::class, 'destroy'])->whereNumber('id');
+    Route::post('/wishlist/{id}/toggle', [WishlistController::class, 'toggle'])->whereNumber('id');
+
 });
 
 // Products

@@ -1,5 +1,6 @@
 import { productsApi, type ProductDetail } from "./api/products";
 import { cartApi } from "./api/cart";
+import { wishlistApi } from "./api/wishlist";
 import { authApi, mapUserToMemberInfo } from "./api/auth";
 import { api } from "./api/client";
 import { ReactNode, useEffect, useMemo, useState } from "react";
@@ -34,6 +35,7 @@ type ShopContext = {
   cart: CartItem[];
   cards: (list: Product[]) => ReactNode[];
   filtered: Product[];
+  allProducts: Product[];
   go: (page: Page) => void;
   loggedIn: boolean;
   memberInfo: MemberInfo;
@@ -93,6 +95,16 @@ function ShopLayout() {
   const [query, setQuery] = useState("");
   const [toast, setToast] = useState("");
   const [allProducts, setAllProducts] = useState<Product[]>(initialMockProducts);
+  useEffect(() => {
+    if (loggedIn) {
+      wishlistApi.get().then((res) => {
+        if (res && Array.isArray(res.ids)) {
+          setWishlist(res.ids);
+        }
+      }).catch(() => {});
+    }
+  }, [loggedIn]);
+
   useEffect(() => {
     if (loggedIn) {
       cartApi.get().then((res) => {
@@ -155,7 +167,13 @@ function ShopLayout() {
   const view = (product: Product) => { navigate(`/products/${product.id}`); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const toggleWish = (id: number) => {
     if (!loggedIn) { go("login"); return; }
-    setWishlist((w) => w.includes(id) ? w.filter((x) => x !== id) : [...w, id]); flash("Wishlist updated");
+    setWishlist((w) => w.includes(id) ? w.filter((x) => x !== id) : [...w, id]);
+    flash("Wishlist updated");
+    wishlistApi.toggle(id).then((res) => {
+      if (res && Array.isArray(res.ids)) {
+        setWishlist(res.ids);
+      }
+    }).catch(() => {});
   };
   const add = (p: Product, color = p.colors[0], size = p.sizes[0], quantity = 1) => {
     const nextItem = { product: p, qty: quantity, color, size };
@@ -186,7 +204,7 @@ function ShopLayout() {
   const filtered = useMemo(() => allProducts.filter((p) => p.name.toLowerCase().includes(query.toLowerCase())), [query, allProducts]);
   const cards = (list: Product[]) => list.map((p) => <ProductCard key={p.id} product={p} wishlisted={wishlist.includes(p.id)} onWish={() => toggleWish(p.id)} onView={() => view(p)} onAdd={() => add(p)}/>);
   const context: ShopContext = {
-    add, cart, cards, filtered, go, loggedIn, memberInfo, query, reviews, setCart, setLoggedIn,
+    add, allProducts, cart, cards, filtered, go, loggedIn, memberInfo, query, reviews, setCart, setLoggedIn,
     setMemberInfo, setQuery, submitReview, toggleWish, view, wishlist,
   };
 
@@ -232,9 +250,9 @@ function ProductDetailRoute() {
 }
 
 function WishlistRoute() {
-  const { add, go, loggedIn, toggleWish, view, wishlist } = useShop();
+  const { add, allProducts, go, loggedIn, toggleWish, view, wishlist } = useShop();
   if (!loggedIn) return <Navigate to="/login" replace/>;
-  return <WishlistPage products={products.filter((product) => wishlist.includes(product.id))} onRemove={toggleWish} onAdd={(product, size) => add(product, product.colors[0], size)} onView={view} go={go}/>;
+  return <WishlistPage products={allProducts.filter((product) => wishlist.includes(product.id))} onRemove={toggleWish} onAdd={(product, size) => add(product, product.colors[0], size)} onView={view} go={go}/>;
 }
 
 function CartRoute() {

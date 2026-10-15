@@ -1,3 +1,4 @@
+import { productsApi, type ProductDetail } from "./api/products";
 import { authApi, mapUserToMemberInfo } from "./api/auth";
 import { api } from "./api/client";
 import { ReactNode, useEffect, useMemo, useState } from "react";
@@ -13,7 +14,7 @@ import {
 import Header from "./components/Header";
 import ProductCard from "./components/ProductCard";
 import { Button, Icon } from "./components/ui";
-import { products } from "./data/products";
+import { products as initialMockProducts } from "./data/products";
 import { initialReviews } from "./data/reviews";
 import AccountPage from "./pages/AccountPage";
 import CartPage from "./pages/CartPage";
@@ -90,6 +91,15 @@ function ShopLayout() {
   const [loggedIn, setLoggedIn] = useStoredState("naemak:logged-in", false);
   const [query, setQuery] = useState("");
   const [toast, setToast] = useState("");
+  const [allProducts, setAllProducts] = useState<Product[]>(initialMockProducts);
+
+  useEffect(() => {
+    productsApi.list().then((list) => {
+      if (list && list.length) {
+        setAllProducts(list);
+      }
+    }).catch(() => {});
+  }, []);
   const [memberInfo, setMemberInfo] = useStoredState<MemberInfo>("naemak:member", { email:"araya@naemak.com", phone:"+66 81 234 5678", firstName:"Araya", lastName:"Siriporn", address:"88 Sukhumvit Road, Khlong Toei", city:"Bangkok", province:"Bangkok", postalCode:"10110", country:"Thailand" });
   useEffect(() => {
     api.get('/me').then((user) => {
@@ -141,7 +151,7 @@ function ShopLayout() {
     setReviews((current) => ({ ...current, [productId]: [nextReview, ...(current[productId] || [])] }));
     flash("Review published");
   };
-  const filtered = useMemo(() => products.filter((p) => p.name.toLowerCase().includes(query.toLowerCase())), [query]);
+  const filtered = useMemo(() => allProducts.filter((p) => p.name.toLowerCase().includes(query.toLowerCase())), [query, allProducts]);
   const cards = (list: Product[]) => list.map((p) => <ProductCard key={p.id} product={p} wishlisted={wishlist.includes(p.id)} onWish={() => toggleWish(p.id)} onView={() => view(p)} onAdd={() => add(p)}/>);
   const context: ShopContext = {
     add, cart, cards, filtered, go, loggedIn, memberInfo, query, reviews, setCart, setLoggedIn,
@@ -156,8 +166,8 @@ function useShop() {
 }
 
 function HomeRoute() {
-  const { cards, go } = useShop();
-  return <HomePage go={go} cards={cards(products.slice(0, 4))}/>;
+  const { cards, filtered, go } = useShop();
+  return <HomePage go={go} cards={cards(filtered.slice(0, 4))}/>;
 }
 
 function ProductsRoute() {
@@ -168,9 +178,25 @@ function ProductsRoute() {
 function ProductDetailRoute() {
   const { productId } = useParams();
   const { add, go, loggedIn, reviews, submitReview, toggleWish } = useShop();
-  const product = products.find((item) => item.id === Number(productId));
+  const [productDetail, setProductDetail] = useState<ProductDetail | null>(null);
+
+  useEffect(() => {
+    if (!productId) return;
+    productsApi.get(Number(productId)).then((detail) => {
+      setProductDetail(detail);
+    }).catch(() => {
+      setProductDetail(null);
+    });
+  }, [productId]);
+
+  const fallbackProduct = initialMockProducts.find((item) => item.id === Number(productId));
+  const product = productDetail || fallbackProduct;
   if (!product) return <Navigate to="/products" replace/>;
-  return <ProductDetailPage product={product} onAdd={(color,size,quantity) => add(product,color,size,quantity)} onWish={() => toggleWish(product.id)} go={go} loggedIn={loggedIn} reviews={reviews[product.id] || []} onSubmitReview={(review) => submitReview(product.id, review)}/>;
+  const reviewList = (productDetail?.reviews_list && productDetail.reviews_list.length)
+    ? productDetail.reviews_list
+    : (reviews[product.id] || []);
+
+  return <ProductDetailPage product={product} onAdd={(color,size,quantity) => add(product,color,size,quantity)} onWish={() => toggleWish(product.id)} go={go} loggedIn={loggedIn} reviews={reviewList} onSubmitReview={(review) => submitReview(product.id, review)}/>;
 }
 
 function WishlistRoute() {

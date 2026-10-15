@@ -27,3 +27,4 @@ Homestead.yaml
 Thumbs.db
 /public/shop
 /.pnpm-store
+/public/images

@@ -2,6 +2,7 @@ import { productsApi, type ProductDetail } from "./api/products";
 import { cartApi } from "./api/cart";
 import { wishlistApi } from "./api/wishlist";
 import { ordersApi, type ApiOrder } from "./api/orders";
+import { reviewsApi } from "./api/reviews";
 import { authApi, mapUserToMemberInfo } from "./api/auth";
 import { api } from "./api/client";
 import { ReactNode, useEffect, useMemo, useState } from "react";
@@ -193,17 +194,33 @@ function ShopLayout() {
     }
     flash(`${p.name} added to bag`);
   };
-  const submitReview = (productId: number, review: Pick<ProductReview, "title" | "text" | "rating">) => {
-    const date = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(new Date()).toUpperCase();
-    const nextReview: ProductReview = {
-      ...review,
-      id: `${productId}-${Date.now()}`,
-      productId,
-      reviewer: `${memberInfo.firstName} ${memberInfo.lastName.charAt(0)}.`,
-      date,
-    };
-    setReviews((current) => ({ ...current, [productId]: [nextReview, ...(current[productId] || [])] }));
-    flash("Review published");
+  const submitReview = async (productId: number, review: Pick<ProductReview, "title" | "text" | "rating">) => {
+    if (!loggedIn) {
+      go("login");
+      return;
+    }
+    try {
+      const res = await reviewsApi.submit(productId, {
+        title: review.title,
+        text: review.text,
+        rating: review.rating,
+      });
+      const date = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(new Date()).toUpperCase();
+      const nextReview: ProductReview = res?.review ? {
+        ...res.review,
+        date: res.review.date || date,
+      } : {
+        ...review,
+        id: `${productId}-${Date.now()}`,
+        productId,
+        reviewer: `${memberInfo.firstName} ${memberInfo.lastName ? memberInfo.lastName.charAt(0) + '.' : ''}`,
+        date,
+      };
+      setReviews((current) => ({ ...current, [productId]: [nextReview, ...(current[productId] || [])] }));
+      flash("Review published");
+    } catch (err: any) {
+      flash(err.message || "Only verified buyers with a completed order can review.");
+    }
   };
   const filtered = useMemo(() => allProducts.filter((p) => p.name.toLowerCase().includes(query.toLowerCase())), [query, allProducts]);
   const cards = (list: Product[]) => list.map((p) => <ProductCard key={p.id} product={p} wishlisted={wishlist.includes(p.id)} onWish={() => toggleWish(p.id)} onView={() => view(p)} onAdd={() => add(p)}/>);
@@ -238,6 +255,9 @@ function ProductDetailRoute() {
     if (!productId) return;
     productsApi.get(Number(productId)).then((detail) => {
       setProductDetail(detail);
+      if (detail && detail.reviews_list && detail.reviews_list.length) {
+        setReviews((cur) => ({ ...cur, [detail.id]: detail.reviews_list }));
+      }
     }).catch(() => {
       setProductDetail(null);
     });

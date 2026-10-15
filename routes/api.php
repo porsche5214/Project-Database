@@ -6,6 +6,8 @@ use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\WishlistController;
 use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\ReviewController;
+use App\Http\Controllers\Api\RatingController;
 use Illuminate\Support\Facades\Route;
 
 // Guest Auth
@@ -39,9 +41,20 @@ Route::middleware('auth')->group(function () {
     Route::get('/orders/{id}', [OrderController::class, 'show'])->whereNumber('id');
     Route::post('/checkout', [OrderController::class, 'checkout']);
 
+    // Reviews & Ratings (Auth)
+    Route::post('/products/{id}/reviews', [ReviewController::class, 'store'])->whereNumber('id');
+    Route::delete('/reviews/{id}', [ReviewController::class, 'destroy'])->whereNumber('id');
+    Route::get('/products/{id}/eligibility', [ReviewController::class, 'eligibility'])->whereNumber('id');
+    Route::post('/products/{id}/rating', [RatingController::class, 'store'])->whereNumber('id');
+    Route::delete('/products/{id}/rating', [RatingController::class, 'destroy'])->whereNumber('id');
+
+
 
 });
 
 // Products
 Route::get('/products', [ProductController::class, 'index']);
 Route::get('/products/{id}', [ProductController::class, 'show'])->whereNumber('id');
+
+Route::get('/products/{id}/reviews', [ReviewController::class, 'index'])->whereNumber('id');
+

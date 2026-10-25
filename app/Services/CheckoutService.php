@@ -1,16 +1,16 @@
 <?php
 
-namespace AppServices;
+namespace App\Services;
 
-use AppModelsAddress;
-use AppModelsCart;
-use AppModelsCartItem;
-use AppModelsMember;
-use AppModelsOrder;
-use AppModelsOrderItem;
-use AppModelsProductVariant;
-use IlluminateSupportFacadesDB;
-use IlluminateValidationValidationException;
+use App\Models\Address;
+use App\Models\Cart;
+use App\Models\CartItem;
+use App\Models\Member;
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\ProductVariant;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class CheckoutService
 {

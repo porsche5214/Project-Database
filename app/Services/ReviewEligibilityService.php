@@ -1,8 +1,8 @@
 <?php
 
-namespace AppServices;
+namespace App\Services;
 
-use IlluminateSupportFacadesDB;
+use Illuminate\Support\Facades\DB;
 
 class ReviewEligibilityService
 {

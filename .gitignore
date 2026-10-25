@@ -26,5 +26,6 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 /public/shop
+/public/spa
 /.pnpm-store
 /public/images

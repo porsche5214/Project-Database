@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AdminOrderController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ProfileController;
@@ -40,6 +41,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/orders', [OrderController::class, 'index']);
     Route::get('/orders/{id}', [OrderController::class, 'show'])->whereNumber('id');
     Route::post('/checkout', [OrderController::class, 'checkout']);
+    Route::post('/orders/{id}/received', [OrderController::class, 'confirmReceived'])->whereNumber('id');
+
+    // Admin: order management
+    Route::get('/admin/orders', [AdminOrderController::class, 'index']);
+    Route::patch('/admin/orders/{id}/status', [AdminOrderController::class, 'updateStatus'])->whereNumber('id');
 
     // Reviews & Ratings (Auth)
     Route::post('/products/{id}/reviews', [ReviewController::class, 'store'])->whereNumber('id');

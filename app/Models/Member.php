@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use Database\Factories\MemberFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 class Member extends Authenticatable
 {
-    use Notifiable;
+    /** @use HasFactory<MemberFactory> */
+    use HasFactory, Notifiable;
 
     protected $table = 'member';
     protected $primaryKey = 'member_id';

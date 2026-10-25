@@ -68,7 +68,7 @@ class DatabaseSeeder extends Seeder
 
         DB::table('orders')->insert([
             'order_id' => 1, 'member_id' => 2, 'contact_email' => 'somchai@naemak.test', 'ship_name' => 'สมชาย ใจดี', 'ship_phone' => '0811111111',
-            'ship_address' => '123/4 ถ.พหลโยธิน สามเสนใน พญาไท กรุงเทพมหานคร 10400', 'total_amount' => 2780, 'status' => 'paid',
+            'ship_address' => '123/4 ถ.พหลโยธิน สามเสนใน พญาไท กรุงเทพมหานคร 10400', 'total_amount' => 2780, 'status' => 'completed',
         ]);
         DB::table('order_item')->insert([
             ['order_id' => 1, 'variant_id' => 5, 'quantity' => 1, 'unit_price' => 2490],

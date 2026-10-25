@@ -1,10 +1,10 @@
 <?php
 
-namespace AppHttpControllersApi;
+namespace App\Http\Controllers\Api;
 
-use AppHttpControllersController;
-use AppServicesCartService;
-use IlluminateHttpRequest;
+use App\Http\Controllers\Controller;
+use App\Services\CartService;
+use Illuminate\Http\Request;
 
 class CartController extends Controller
 {

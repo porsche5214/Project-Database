@@ -1,12 +1,12 @@
 <?php
 
-namespace AppHttpControllersApi;
+namespace App\Http\Controllers\Api;
 
-use AppHttpControllersController;
-use AppModelsProduct;
-use AppModelsRating;
-use AppServicesReviewEligibilityService;
-use IlluminateHttpRequest;
+use App\Http\Controllers\Controller;
+use App\Models\Product;
+use App\Models\Rating;
+use App\Services\ReviewEligibilityService;
+use Illuminate\Http\Request;
 
 class RatingController extends Controller
 {

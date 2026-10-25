@@ -1,13 +1,14 @@
 <?php
 
-namespace AppHttpControllersApi;
+namespace App\Http\Controllers\Api;
 
-use AppHttpControllersController;
-use AppModelsProduct;
-use AppModelsRating;
-use AppModelsReview;
-use AppServicesReviewEligibilityService;
-use IlluminateHttpRequest;
+use App\Http\Controllers\Controller;
+use App\Models\Product;
+use App\Models\Rating;
+use App\Models\Review;
+use App\Services\ReviewEligibilityService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class ReviewController extends Controller
 {
@@ -38,7 +39,7 @@ class ReviewController extends Controller
                 }
 
                 $reviewer = $rev->member
-                    ? trim(($rev->member->first_name ?? '') . ' ' . (substr($rev->member->last_name ?? '', 0, 1) . '.'))
+                    ? trim(($rev->member->first_name ?? '') . ' ' . (Str::substr($rev->member->last_name ?? '', 0, 1) . '.'))
                     : 'Member';
                 if (empty(trim($reviewer)) || $reviewer === '.') {
                     $reviewer = $rev->member?->username ?? 'Member';
@@ -111,7 +112,7 @@ class ReviewController extends Controller
             'review' => [
                 'id' => (string) $review->review_id,
                 'productId' => $id,
-                'reviewer' => trim("{$member->first_name} " . substr($member->last_name ?? '', 0, 1) . '.') ?: $member->username,
+                'reviewer' => trim("{$member->first_name} " . Str::substr($member->last_name ?? '', 0, 1) . '.') ?: $member->username,
                 'date' => date('d M Y'),
                 'title' => $title,
                 'text' => $text,

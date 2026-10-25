@@ -64,9 +64,10 @@ class ApiCartTest extends TestCase
         $expectedShipping = ($price < 2500) ? 150.0 : 0.0;
         $expectedTotal = $price + $expectedShipping;
 
-        $response->assertJsonPath('cart.subtotal', $price)
-            ->assertJsonPath('cart.shipping', $expectedShipping)
-            ->assertJsonPath('cart.total', $expectedTotal);
+        // JSON drops ".0" on whole floats (290.0 -> 290), so compare by value
+        $this->assertEquals($price, $response->json('cart.subtotal'));
+        $this->assertEquals($expectedShipping, $response->json('cart.shipping'));
+        $this->assertEquals($expectedTotal, $response->json('cart.total'));
     }
 
     public function test_adding_existing_variant_increments_quantity(): void

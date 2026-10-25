@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
+// ตะกร้าผ่าน API ที่หน้า React ใช้ (/api/cart/*)
 class CartTest extends TestCase
 {
     use RefreshDatabase;
@@ -49,8 +50,7 @@ class CartTest extends TestCase
 
     public function test_guest_cannot_access_cart()
     {
-        $response = $this->get('/cart');
-        $response->assertRedirect('/login');
+        $this->getJson('/api/cart')->assertStatus(401);
     }
 
     public function test_can_add_item_to_cart_and_quantity_is_added()
@@ -60,25 +60,35 @@ class CartTest extends TestCase
 
         $this->actingAs($member);
 
-        $response = $this->post('/cart/add', [
+        $this->postJson('/api/cart/add', [
             'variant_id' => $variant->variant_id,
             'quantity' => 2,
-        ]);
-        $response->assertSessionHas('success');
+        ])->assertOk();
 
         $cart = Cart::where('member_id', $member->member_id)->first();
         $this->assertNotNull($cart);
-        
+
         $item = CartItem::where('cart_id', $cart->cart_id)->where('variant_id', $variant->variant_id)->first();
         $this->assertEquals(2, $item->quantity);
 
-        $this->post('/cart/add', [
+        $this->postJson('/api/cart/add', [
             'variant_id' => $variant->variant_id,
             'quantity' => 3,
-        ]);
+        ])->assertOk()->assertJsonPath('cart.items.0.quantity', 5);
 
         $item = CartItem::where('cart_id', $cart->cart_id)->where('variant_id', $variant->variant_id)->first();
         $this->assertEquals(5, $item->quantity);
+    }
+
+    public function test_cannot_add_more_than_stock()
+    {
+        $variant = $this->createVariant(stock: 2);
+        $member = $this->createMember();
+
+        $this->actingAs($member)->postJson('/api/cart/add', [
+            'variant_id' => $variant->variant_id,
+            'quantity' => 3,
+        ])->assertStatus(422)->assertJsonValidationErrors('quantity');
     }
 
     public function test_cannot_modify_other_members_cart()
@@ -87,17 +97,15 @@ class CartTest extends TestCase
         $member1 = $this->createMember();
         $member2 = $this->createMember();
 
-        $this->actingAs($member1);
-        $this->post('/cart/add', [
+        $this->actingAs($member1)->postJson('/api/cart/add', [
             'variant_id' => $variant->variant_id,
             'quantity' => 2,
         ]);
 
-        $this->actingAs($member2);
-        $this->post('/cart/remove/' . $variant->variant_id);
+        $this->actingAs($member2)->postJson('/api/cart/remove/' . $variant->variant_id);
 
         $cart1 = Cart::where('member_id', $member1->member_id)->first();
         $item = CartItem::where('cart_id', $cart1->cart_id)->where('variant_id', $variant->variant_id)->first();
-        $this->assertNotNull($item); 
+        $this->assertNotNull($item);
     }
 }

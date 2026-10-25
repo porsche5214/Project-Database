@@ -1,11 +1,11 @@
 <?php
 
-namespace AppHttpControllersApi;
+namespace App\Http\Controllers\Api;
 
-use AppHttpControllersController;
-use AppHttpResourcesProductResource;
-use AppModelsProduct;
-use IlluminateHttpRequest;
+use App\Http\Controllers\Controller;
+use App\Http\Resources\ProductResource;
+use App\Models\Product;
+use Illuminate\Http\Request;
 
 class WishlistController extends Controller
 {

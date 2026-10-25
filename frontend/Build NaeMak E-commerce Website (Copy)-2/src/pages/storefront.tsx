@@ -1,6 +1,6 @@
 import { authApi } from "../api/auth";
 import { ordersApi, type ApiOrder } from "../api/orders";
-import { FormEvent, ReactNode, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { photos } from "../data/products";
 import { cartItemKey, type CartItem, type MemberInfo, type Page, type Product } from "../types/shop";
 import { Button, CheckoutField, Empty, Field, Icon, SectionTitle, Stars } from "../components/ui";
@@ -83,6 +83,16 @@ export function ProductsPage({ products, renderCards, query, setQuery }: { produ
       {cards.length ? <div className="product-grid listing-grid">{cards}</div> : <Empty title="No products found." text="Try a different name, brand, or category." action="CLEAR FILTERS" onAction={clearFilters}/>}
     </div>
   </main>;
+}
+
+// Progress of the latest order, driven by its real status.
+function OrderTimeline({ status }: { status: string }) {
+  if (status === "cancelled") {
+    return <div className="timeline"><div className="done"><i><Icon name="check"/></i><strong>ORDER CANCELLED</strong><span>STOCK RETURNED</span></div></div>;
+  }
+  const steps = [["pending", "ORDER PLACED"], ["paid", "PAID"], ["shipped", "SHIPPED"], ["completed", "COMPLETED"]];
+  const current = steps.findIndex(([key]) => key === status);
+  return <div className="timeline">{steps.map(([key, label], index) => <div className={index <= current ? "done" : ""} key={key}><i>{index <= current ? <Icon name="check"/> : index + 1}</i><strong>{label}</strong><span>{index <= current ? "DONE" : "PENDING"}</span></div>)}</div>;
 }
 
 export function Filter({ title, options, selected, onToggle, chips = false }: { title: string; options: string[]; selected: string[]; onToggle: (value: string) => void; chips?: boolean }) {
@@ -218,13 +228,26 @@ export function Auth({ mode, go, onSuccess, message }: { mode: "login" | "regist
 }
 
 export function Account({ memberInfo, go, onSaveInfo, onLogout }: { memberInfo: MemberInfo; go: (page: Page) => void; onSaveInfo: (info: MemberInfo) => void; onLogout: () => void }) {
-  const [orders, setOrders] = useState<ApiOrder[]>([]);
-  useEffect(() => {
-    if (tab === "Orders") {
-      ordersApi.list().then((list) => { if (list && list.length) setOrders(list); }).catch(() => {});
-    }
-  }, [tab]);
   const [tab, setTab] = useState<"Profile" | "Membership" | "Orders">("Profile");
+  const [orders, setOrders] = useState<ApiOrder[]>([]);
+  const [ordersState, setOrdersState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [ordersError, setOrdersError] = useState("");
+  useEffect(() => {
+    if (tab !== "Orders") return;
+    setOrdersState("loading");
+    ordersApi.list()
+      .then((list) => { setOrders(list || []); setOrdersState("ready"); })
+      .catch((err: any) => { setOrdersError(err?.message || "Could not load your orders."); setOrdersState("error"); });
+  }, [tab]);
+  const confirmReceived = async (orderId: number) => {
+    setOrdersError("");
+    try {
+      const updated = await ordersApi.confirmReceived(orderId);
+      setOrders((current) => current.map((o) => o.order_id === orderId ? updated : o));
+    } catch (err: any) {
+      setOrdersError(err?.getFirstError ? err.getFirstError() : err?.message || "Could not update this order.");
+    }
+  };
   const [editing, setEditing] = useState(false);
   const [info, setInfo] = useState(memberInfo);
   const update = (key: keyof MemberInfo, value: string) => setInfo((current) => ({...current, [key]: value}));
@@ -238,7 +261,7 @@ export function Account({ memberInfo, go, onSaveInfo, onLogout }: { memberInfo: 
       </aside>
       {tab === "Profile" && <section className="profile-panel"><div className="section-title"><div><span className="eyebrow">PERSONAL DETAILS</span><h2>MY PROFILE</h2></div><button onClick={() => setEditing(!editing)}>{editing ? "CANCEL" : "EDIT PROFILE"}</button></div><div className="profile-form"><div className="two-inputs"><CheckoutField label="FIRST NAME" value={info.firstName} onChange={(value) => update("firstName",value)}/><CheckoutField label="LAST NAME" value={info.lastName} onChange={(value) => update("lastName",value)}/></div><CheckoutField label="EMAIL" type="email" value={info.email} onChange={(value) => update("email",value)}/><CheckoutField label="PHONE NUMBER" value={info.phone} onChange={(value) => update("phone",value)}/><CheckoutField label="SAVED ADDRESS" value={info.address} onChange={(value) => update("address",value)}/><div className="two-inputs"><CheckoutField label="CITY / DISTRICT" value={info.city} onChange={(value) => update("city",value)}/><CheckoutField label="PROVINCE / STATE" value={info.province} onChange={(value) => update("province",value)}/></div><div className="two-inputs"><CheckoutField label="POSTAL CODE" value={info.postalCode} onChange={(value) => update("postalCode",value)}/><CheckoutField label="COUNTRY" value={info.country} onChange={(value) => update("country",value)}/></div>{editing && <Button onClick={() => { onSaveInfo(info); setEditing(false); }}>SAVE CHANGES</Button>}</div></section>}
       {tab === "Membership" && <MemberProgram memberInfo={memberInfo} onOrders={() => setTab("Orders")} onWishlist={() => go("wishlist")}/>}
-      {tab === "Orders" && <section className="orders"><div className="section-title"><div><span className="eyebrow">PURCHASES</span><h2>ORDER HISTORY</h2></div></div>{(orders.length ? orders : [{ order_id: 1, order_number: "NM-250619-0842", formatted_date: "19 JUN 2025", total_amount: 5180, status: "shipped", items: [] } as any]).map((ord: any) => (<article className="order-card" key={ord.order_id}><div><span>ORDER</span><strong>#{ord.order_number}</strong></div><div><span>DATE</span><strong>{ord.formatted_date || ord.order_date}</strong></div><div><span>TOTAL</span><strong>฿{Number(ord.total_amount).toLocaleString()}</strong></div><div><span>STATUS</span><i className="status">{String(ord.status).toUpperCase()}</i></div><button>VIEW DETAILS <Icon name="arrow"/></button></article>))}<div className="timeline"><div className="done"><i><Icon name="check"/></i><strong>ORDER PLACED</strong><span>19 JUN</span></div><div className="done"><i><Icon name="check"/></i><strong>PAID</strong><span>19 JUN</span></div><div className="done"><i><Icon name="check"/></i><strong>SHIPPED</strong><span>20 JUN</span></div><div><i>4</i><strong>COMPLETED</strong><span>EST. 22 JUN</span></div></div></section>}
+      {tab === "Orders" && <section className="orders"><div className="section-title"><div><span className="eyebrow">PURCHASES</span><h2>ORDER HISTORY</h2></div></div>{ordersError && <p className="validation">{ordersError}</p>}{ordersState === "loading" && <p className="eyebrow">LOADING ORDERS…</p>}{ordersState === "ready" && !orders.length && <Empty title="No orders yet." text="Your orders will appear here after checkout." action="START SHOPPING" onAction={() => go("products")}/>}{orders.map((ord) => (<article className="order-card" key={ord.order_id}><div><span>ORDER</span><strong>#{ord.order_number}</strong></div><div><span>DATE</span><strong>{ord.formatted_date || ord.order_date}</strong></div><div><span>TOTAL</span><strong>฿{Number(ord.total_amount).toLocaleString()}</strong></div><div><span>STATUS</span><i className="status">{String(ord.status).toUpperCase()}</i></div>{ord.status === "shipped" ? <button onClick={() => confirmReceived(ord.order_id)}>MARK AS RECEIVED <Icon name="check"/></button> : <span/>}</article>))}{orders[0] && <OrderTimeline status={orders[0].status}/>}</section>}
     </div>
   </main>;
 }

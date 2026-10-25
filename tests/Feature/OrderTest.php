@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
+// Checkout / ประวัติ order ผ่าน API ที่หน้า React ใช้ (/api/checkout, /api/orders)
 class OrderTest extends TestCase
 {
     use RefreshDatabase;
@@ -77,17 +78,19 @@ class OrderTest extends TestCase
             'quantity' => 2,
         ]);
 
-        $response = $this->post('/checkout', [
+        $response = $this->postJson('/api/checkout', [
             'address_id' => $address->address_id,
         ]);
 
-        $response->assertRedirect('/orders');
-        
+        $response->assertCreated()->assertJsonPath('order.status', 'pending');
+
         $this->assertDatabaseEmpty('cart_item');
-        
+
+        // 2 x 150 = 300 + ค่าส่ง 150 (ยอดต่ำกว่า 2,500)
         $order = Order::where('member_id', $member->member_id)->first();
         $this->assertNotNull($order);
-        $this->assertEquals(300, $order->total_amount);
+        $this->assertEquals(450, $order->total_amount);
+        $this->assertSame('John Doe', $order->ship_name);
 
         $orderItem = OrderItem::where('order_id', $order->order_id)->first();
         $this->assertEquals(150, $orderItem->unit_price);
@@ -112,20 +115,38 @@ class OrderTest extends TestCase
             'quantity' => 2, // Try to buy 2
         ]);
 
-        $response = $this->post('/checkout', [
+        $response = $this->postJson('/api/checkout', [
             'address_id' => $address->address_id,
         ]);
 
-        $response->assertSessionHasErrors('msg');
+        $response->assertStatus(422);
 
         $this->assertDatabaseHas('cart_item', [
             'cart_id' => $cart->cart_id,
             'variant_id' => $variant->variant_id,
             'quantity' => 2,
         ]);
+        $this->assertDatabaseCount('orders', 0);
 
         $updatedVariant = DB::table('product_variant')->where('variant_id', $variant->variant_id)->first();
         $this->assertEquals(1, $updatedVariant->stock);
+    }
+
+    public function test_cannot_checkout_with_another_members_address()
+    {
+        $member = $this->createMember();
+        $other = $this->createMember();
+        $otherAddress = $this->createAddress($other->member_id);
+        $variant = $this->createVariant(10, 150);
+
+        $cart = Cart::create(['member_id' => $member->member_id]);
+        CartItem::create(['cart_id' => $cart->cart_id, 'variant_id' => $variant->variant_id, 'quantity' => 1]);
+
+        $this->actingAs($member)->postJson('/api/checkout', [
+            'address_id' => $otherAddress->address_id,
+        ])->assertStatus(422);
+
+        $this->assertDatabaseCount('orders', 0);
     }
 
     public function test_cannot_view_others_orders()
@@ -142,9 +163,6 @@ class OrderTest extends TestCase
             'total_amount' => 100,
         ]);
 
-        $this->actingAs($member2);
-        $response = $this->get('/orders/' . $order->order_id);
-        
-        $response->assertStatus(404);
+        $this->actingAs($member2)->getJson('/api/orders/' . $order->order_id)->assertStatus(404);
     }
 }

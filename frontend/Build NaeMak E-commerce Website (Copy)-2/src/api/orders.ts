@@ -58,4 +58,8 @@ export const ordersApi = {
   checkout: async (payload: CheckoutPayload): Promise<{ message: string; order: ApiOrder }> => {
     return api.post<{ message: string; order: ApiOrder }>('/checkout', payload);
   },
+  confirmReceived: async (id: number): Promise<ApiOrder> => {
+    const res = await api.post<{ message: string; order: ApiOrder }>(`/orders/${id}/received`, {});
+    return res.order;
+  },
 };

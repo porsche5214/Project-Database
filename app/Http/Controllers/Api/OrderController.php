@@ -1,11 +1,12 @@
 <?php
 
-namespace AppHttpControllersApi;
+namespace App\Http\Controllers\Api;
 
-use AppHttpControllersController;
-use AppHttpResourcesOrderResource;
-use AppServicesCheckoutService;
-use IlluminateHttpRequest;
+use App\Http\Controllers\Controller;
+use App\Http\Resources\OrderResource;
+use App\Services\CheckoutService;
+use App\Services\OrderStatusService;
+use Illuminate\Http\Request;
 
 class OrderController extends Controller
 {
@@ -69,5 +70,15 @@ class OrderController extends Controller
                 'message' => $e->getMessage(),
             ], 422);
         }
+    }
+
+    public function confirmReceived(Request $request, int $id, OrderStatusService $statusService)
+    {
+        $order = $statusService->confirmReceived($request->user()->member_id, $id);
+
+        return response()->json([
+            'message' => 'Order marked as received',
+            'order' => new OrderResource($order),
+        ]);
     }
 }

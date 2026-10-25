@@ -75,15 +75,16 @@ class ApiOrderTest extends TestCase
         ]);
 
         $response->assertStatus(201)
-            ->assertJsonPath('order.total_amount', $expectedTotal)
             ->assertJsonPath('order.ship_name', 'Araya Siriporn');
+        // JSON drops ".0" on whole floats (440.0 -> 440), so compare by value
+        $this->assertEquals($expectedTotal, $response->json('order.total_amount'));
 
         // Verify stock decremented
         $variant->refresh();
         $this->assertEquals($initialStock - 1, $variant->stock);
 
-        // Verify cart cleared
-        $this->assertDatabaseEmpty('cart_item');
+        // Verify this member's cart cleared (seeded member somchai still has items of their own)
+        $this->assertDatabaseMissing('cart_item', ['cart_id' => $cart->cart_id]);
 
         // Verify address saved
         $this->assertDatabaseHas('address', [
@@ -139,7 +140,9 @@ class ApiOrderTest extends TestCase
         $detailResponse = $this->actingAs($somchai)->getJson('/api/orders/1');
         $detailResponse->assertOk()
             ->assertJsonPath('order.order_id', 1)
-            ->assertJsonPath('order.items.0.product_id', 3);
+            ->assertJsonCount(2, 'order.items');
+        // Seeded order 1 has products 3 and 1; item order follows variant_id, so don't rely on position
+        $this->assertEqualsCanonicalizing([1, 3], collect($detailResponse->json('order.items'))->pluck('product_id')->all());
     }
 
     public function test_member_cannot_view_another_members_order(): void
@@ -149,5 +152,82 @@ class ApiOrderTest extends TestCase
         // Order 1 belongs to somchai
         $response = $this->actingAs($otherMember)->getJson('/api/orders/1');
         $response->assertStatus(404);
+    }
+
+    private function createOrder(Member $member, string $status, int $quantity = 2): Order
+    {
+        $variant = ProductVariant::where('product_id', 1)->first();
+        $order = Order::create([
+            'member_id' => $member->member_id,
+            'contact_email' => $member->email,
+            'ship_name' => 'Test',
+            'ship_phone' => '123',
+            'ship_address' => 'Addr',
+            'total_amount' => 500,
+            'status' => $status,
+        ]);
+        OrderItem::insert([
+            'order_id' => $order->order_id,
+            'variant_id' => $variant->variant_id,
+            'quantity' => $quantity,
+            'unit_price' => 250,
+        ]);
+
+        return $order;
+    }
+
+    public function test_only_admin_can_update_order_status(): void
+    {
+        $member = Member::factory()->create();
+        $admin = Member::where('username', 'admin')->first();
+        $order = $this->createOrder($member, 'pending');
+
+        $this->actingAs($member)->getJson('/api/admin/orders')->assertStatus(403);
+        $this->actingAs($member)->patchJson("/api/admin/orders/{$order->order_id}/status", ['status' => 'paid'])
+            ->assertStatus(403);
+
+        $this->actingAs($admin)->getJson('/api/admin/orders')->assertOk();
+        $this->actingAs($admin)->patchJson("/api/admin/orders/{$order->order_id}/status", ['status' => 'paid'])
+            ->assertOk()
+            ->assertJsonPath('order.status', 'paid');
+
+        // Invalid transition: paid -> completed (must ship first)
+        $this->actingAs($admin)->patchJson("/api/admin/orders/{$order->order_id}/status", ['status' => 'completed'])
+            ->assertStatus(422);
+    }
+
+    public function test_cancelling_order_returns_stock(): void
+    {
+        $member = Member::factory()->create();
+        $admin = Member::where('username', 'admin')->first();
+        $order = $this->createOrder($member, 'paid', 3);
+        $variant = ProductVariant::where('product_id', 1)->first();
+        $stockBefore = $variant->stock;
+
+        $this->actingAs($admin)->patchJson("/api/admin/orders/{$order->order_id}/status", ['status' => 'cancelled'])
+            ->assertOk();
+
+        $this->assertSame($stockBefore + 3, (int) $variant->fresh()->stock);
+    }
+
+    public function test_member_can_confirm_received_only_when_shipped(): void
+    {
+        $member = Member::factory()->create();
+        $order = $this->createOrder($member, 'paid');
+
+        $this->actingAs($member)->postJson("/api/orders/{$order->order_id}/received")->assertStatus(422);
+
+        $order->update(['status' => 'shipped']);
+        $this->actingAs($member)->postJson("/api/orders/{$order->order_id}/received")
+            ->assertOk()
+            ->assertJsonPath('order.status', 'completed');
+
+        // Now the member is a verified buyer and can review
+        $this->actingAs($member)->postJson('/api/products/1/reviews', ['comment' => 'Got it, great!'])
+            ->assertStatus(201);
+
+        // Other members cannot touch this order
+        $other = Member::factory()->create();
+        $this->actingAs($other)->postJson("/api/orders/{$order->order_id}/received")->assertStatus(404);
     }
 }

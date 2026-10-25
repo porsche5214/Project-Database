@@ -10,11 +10,19 @@ import siteConfiguration from './.figma/make/site.json'
 export default defineConfig(({ mode }) => {
   // .figma/make/deploy-preview passes `--mode development` for cached-preview builds.
   const emitSourcemaps = mode === 'development'
+  // Laravel build: static files live in public/spa (/spa/...), while the pages are served
+  // by Laravel's /shop/* route. They must not share a name: a real public/shop folder makes
+  // PHP's built-in server (Sail) answer /shop itself instead of passing it to Laravel.
+  const assetBase = process.env.FIGMA_PUBLIC_URL ? `${process.env.FIGMA_PUBLIC_URL}/` : (mode === 'production' ? '/spa/' : '/')
+  const routerBase = process.env.FIGMA_PUBLIC_URL ? process.env.FIGMA_PUBLIC_URL : (mode === 'production' ? '/shop' : '/')
 
   return {
-    base: process.env.FIGMA_PUBLIC_URL ? `${process.env.FIGMA_PUBLIC_URL}/` : (mode === 'production' ? '/shop/' : '/'),
+    base: assetBase,
+    define: {
+      __ROUTER_BASE__: JSON.stringify(routerBase),
+    },
     build: {
-      outDir: path.resolve(__dirname, '../../public/shop'),
+      outDir: path.resolve(__dirname, '../../public/spa'),
       emptyOutDir: true,
       sourcemap: emitSourcemaps ? 'inline' : false,
       minify: !emitSourcemaps,

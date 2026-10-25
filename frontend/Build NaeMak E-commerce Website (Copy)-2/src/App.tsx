@@ -1,3 +1,10 @@
+import { productsApi, type ProductDetail } from "./api/products";
+import { cartApi, type ApiCartItem } from "./api/cart";
+import { wishlistApi } from "./api/wishlist";
+import { ordersApi, type ApiOrder } from "./api/orders";
+import { reviewsApi } from "./api/reviews";
+import { authApi, mapUserToMemberInfo } from "./api/auth";
+import { api } from "./api/client";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import {
   createBrowserRouter,
@@ -11,8 +18,6 @@ import {
 import Header from "./components/Header";
 import ProductCard from "./components/ProductCard";
 import { Button, Icon } from "./components/ui";
-import { products } from "./data/products";
-import { initialReviews } from "./data/reviews";
 import AccountPage from "./pages/AccountPage";
 import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
@@ -30,11 +35,18 @@ type ShopContext = {
   cart: CartItem[];
   cards: (list: Product[]) => ReactNode[];
   filtered: Product[];
+  allProducts: Product[];
+  productsLoading: boolean;
+  lastOrder: ApiOrder | null;
+  setLastOrder: React.Dispatch<React.SetStateAction<ApiOrder | null>>;
   go: (page: Page) => void;
+  flash: (message: string) => void;
+  authReady: boolean;
   loggedIn: boolean;
   memberInfo: MemberInfo;
   query: string;
   reviews: Record<number, ProductReview[]>;
+  setReviews: React.Dispatch<React.SetStateAction<Record<number, ProductReview[]>>>;
   setCart: React.Dispatch<React.SetStateAction<CartItem[]>>;
   setLoggedIn: React.Dispatch<React.SetStateAction<boolean>>;
   setMemberInfo: React.Dispatch<React.SetStateAction<MemberInfo>>;
@@ -43,6 +55,7 @@ type ShopContext = {
   submitReview: (productId: number, review: Pick<ProductReview, "title" | "text" | "rating">) => void;
   view: (product: Product) => void;
   wishlist: number[];
+  resetSession: () => void;
 };
 
 const pagePaths: Record<Page, string> = {
@@ -58,6 +71,35 @@ const pagePaths: Record<Page, string> = {
   account: "/account",
   admin: "/admin",
 };
+
+const emptyMemberInfo: MemberInfo = { email: "", phone: "", firstName: "", lastName: "", address: "", city: "", province: "", postalCode: "", country: "Thailand" };
+
+function errorMessage(err: any, fallback: string): string {
+  if (err && typeof err.getFirstError === "function") return err.getFirstError();
+  return err?.message || fallback;
+}
+
+// Map the server cart into the UI cart shape.
+function toCartItems(items: ApiCartItem[]): CartItem[] {
+  return items.map((it) => ({
+    product: {
+      id: it.product_id,
+      name: it.name,
+      brand: it.brand,
+      price: it.price,
+      category: "",
+      gender: "",
+      rating: 0,
+      reviews: 0,
+      image: it.image,
+      colors: [it.color],
+      sizes: [it.size],
+    },
+    qty: it.quantity,
+    color: it.color,
+    size: it.size,
+  }));
+}
 
 function useStoredState<T>(key: string, initialValue: T) {
   const [value, setValue] = useState<T>(() => {
@@ -82,21 +124,76 @@ function useStoredState<T>(key: string, initialValue: T) {
 
 function ShopLayout() {
   const navigate = useNavigate();
-  const [wishlist, setWishlist] = useStoredState<number[]>("naemak:wishlist", [3]);
+  // Wishlist, reviews and member info always come from the server.
+  const [wishlist, setWishlist] = useState<number[]>([]);
+  // Guests keep their bag in localStorage; members use the server cart.
   const [cart, setCart] = useStoredState<CartItem[]>("naemak:cart", []);
-  const [reviews, setReviews] = useStoredState<Record<number, ProductReview[]>>("naemak:reviews", initialReviews);
-  const [loggedIn, setLoggedIn] = useStoredState("naemak:logged-in", false);
+  const [reviews, setReviews] = useState<Record<number, ProductReview[]>>({});
+  const [loggedIn, setLoggedIn] = useState(false);
+  // False until /api/me answers, so member-only pages don't redirect on reload.
+  const [authReady, setAuthReady] = useState(false);
   const [query, setQuery] = useState("");
   const [toast, setToast] = useState("");
-  const [memberInfo, setMemberInfo] = useStoredState<MemberInfo>("naemak:member", { email:"araya@naemak.com", phone:"+66 81 234 5678", firstName:"Araya", lastName:"Siriporn", address:"88 Sukhumvit Road, Khlong Toei", city:"Bangkok", province:"Bangkok", postalCode:"10110", country:"Thailand" });
-  const go = (page: Page) => { navigate(pagePaths[page]); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const [lastOrder, setLastOrder] = useStoredState<ApiOrder | null>("naemak:last-order", null);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [memberInfo, setMemberInfo] = useState<MemberInfo>(emptyMemberInfo);
+
   const flash = (s: string) => { setToast(s); window.setTimeout(() => setToast(""), 2400); };
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    wishlistApi.get().then((res) => {
+      if (res && Array.isArray(res.ids)) setWishlist(res.ids);
+    }).catch((err) => flash(errorMessage(err, "Could not load your wishlist.")));
+    cartApi.get().then((res) => {
+      if (res && res.items) setCart(toCartItems(res.items));
+    }).catch((err) => flash(errorMessage(err, "Could not load your bag.")));
+  }, [loggedIn]);
+
+  useEffect(() => {
+    productsApi.list()
+      .then((list) => setAllProducts(list || []))
+      .catch((err) => flash(errorMessage(err, "Could not load products. Please try again.")))
+      .finally(() => setProductsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    api.get("/me").then((user) => {
+      if (user) {
+        setLoggedIn(true);
+        setMemberInfo(mapUserToMemberInfo(user));
+      } else {
+        setLoggedIn(false);
+      }
+    }).catch(() => setLoggedIn(false))
+      .finally(() => setAuthReady(true));
+  }, []);
+
+  const go = (page: Page) => { navigate(pagePaths[page]); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const view = (product: Product) => { navigate(`/products/${product.id}`); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const resetSession = () => {
+    setLoggedIn(false);
+    setWishlist([]);
+    setCart([]);
+    setMemberInfo(emptyMemberInfo);
+    setLastOrder(null);
+  };
   const toggleWish = (id: number) => {
     if (!loggedIn) { go("login"); return; }
-    setWishlist((w) => w.includes(id) ? w.filter((x) => x !== id) : [...w, id]); flash("Wishlist updated");
+    wishlistApi.toggle(id).then((res) => {
+      if (res && Array.isArray(res.ids)) setWishlist(res.ids);
+      flash(res?.in_wishlist === false ? "Removed from wishlist" : "Added to wishlist");
+    }).catch((err) => flash(errorMessage(err, "Could not update your wishlist.")));
   };
   const add = (p: Product, color = p.colors[0], size = p.sizes[0], quantity = 1) => {
+    if (loggedIn) {
+      cartApi.add({ product_id: p.id, color, size, quantity }).then((res) => {
+        if (res?.cart?.items) setCart(toCartItems(res.cart.items));
+        flash(`${p.name} added to bag`);
+      }).catch((err) => flash(errorMessage(err, "Could not add this item to your bag.")));
+      return;
+    }
     const nextItem = { product: p, qty: quantity, color, size };
     const nextKey = cartItemKey(nextItem);
     setCart((items) => {
@@ -107,23 +204,34 @@ function ShopLayout() {
     });
     flash(`${p.name} added to bag`);
   };
-  const submitReview = (productId: number, review: Pick<ProductReview, "title" | "text" | "rating">) => {
-    const date = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(new Date()).toUpperCase();
-    const nextReview: ProductReview = {
-      ...review,
-      id: `${productId}-${Date.now()}`,
-      productId,
-      reviewer: `${memberInfo.firstName} ${memberInfo.lastName.charAt(0)}.`,
-      date,
-    };
-    setReviews((current) => ({ ...current, [productId]: [nextReview, ...(current[productId] || [])] }));
-    flash("Review published");
+  const submitReview = async (productId: number, review: Pick<ProductReview, "title" | "text" | "rating">) => {
+    if (!loggedIn) {
+      go("login");
+      return;
+    }
+    try {
+      const res = await reviewsApi.submit(productId, {
+        title: review.title,
+        text: review.text,
+        rating: review.rating,
+      });
+      if (res?.review) {
+        const nextReview = res.review;
+        setReviews((current) => ({
+          ...current,
+          [productId]: [nextReview, ...(current[productId] || []).filter((r) => r.id !== nextReview.id)],
+        }));
+      }
+      flash("Review published");
+    } catch (err: any) {
+      flash(errorMessage(err, "Only verified buyers with a completed order can review."));
+    }
   };
-  const filtered = useMemo(() => products.filter((p) => p.name.toLowerCase().includes(query.toLowerCase())), [query]);
+  const filtered = useMemo(() => allProducts.filter((p) => p.name.toLowerCase().includes(query.toLowerCase())), [query, allProducts]);
   const cards = (list: Product[]) => list.map((p) => <ProductCard key={p.id} product={p} wishlisted={wishlist.includes(p.id)} onWish={() => toggleWish(p.id)} onView={() => view(p)} onAdd={() => add(p)}/>);
   const context: ShopContext = {
-    add, cart, cards, filtered, go, loggedIn, memberInfo, query, reviews, setCart, setLoggedIn,
-    setMemberInfo, setQuery, submitReview, toggleWish, view, wishlist,
+    add, allProducts, productsLoading, cart, cards, filtered, go, flash, authReady, lastOrder, setLastOrder, loggedIn, memberInfo, query, reviews, setReviews,
+    setCart, setLoggedIn, setMemberInfo, setQuery, submitReview, toggleWish, view, wishlist, resetSession,
   };
 
   return <><Header go={go} cartCount={cart.reduce((s,x)=>s+x.qty,0)} wishCount={wishlist.length} loggedIn={loggedIn} onSearch={(q) => { setQuery(q); go("products"); }}/><Outlet context={context}/>{toast && <div className="toast"><Icon name="check"/>{toast}</div>}</>;
@@ -133,60 +241,190 @@ function useShop() {
   return useOutletContext<ShopContext>();
 }
 
+function Loading({ text = "LOADING…" }: { text?: string }) {
+  return <main><section className="section"><p className="eyebrow">{text}</p></section></main>;
+}
+
 function HomeRoute() {
-  const { cards, go } = useShop();
-  return <HomePage go={go} cards={cards(products.slice(0, 4))}/>;
+  const { cards, filtered, go } = useShop();
+  return <HomePage go={go} cards={cards(filtered.slice(0, 4))}/>;
 }
 
 function ProductsRoute() {
-  const { cards, filtered, query, setQuery } = useShop();
+  const { cards, filtered, productsLoading, query, setQuery } = useShop();
+  if (productsLoading) return <Loading text="LOADING PRODUCTS…"/>;
   return <ProductsPage products={filtered} renderCards={cards} query={query} setQuery={setQuery}/>;
 }
 
 function ProductDetailRoute() {
   const { productId } = useParams();
-  const { add, go, loggedIn, reviews, submitReview, toggleWish } = useShop();
-  const product = products.find((item) => item.id === Number(productId));
-  if (!product) return <Navigate to="/products" replace/>;
-  return <ProductDetailPage product={product} onAdd={(color,size,quantity) => add(product,color,size,quantity)} onWish={() => toggleWish(product.id)} go={go} loggedIn={loggedIn} reviews={reviews[product.id] || []} onSubmitReview={(review) => submitReview(product.id, review)}/>;
+  const { add, go, loggedIn, reviews, setReviews, submitReview, toggleWish } = useShop();
+  const [productDetail, setProductDetail] = useState<ProductDetail | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "missing">("loading");
+
+  useEffect(() => {
+    if (!productId) return;
+    setStatus("loading");
+    productsApi.get(Number(productId)).then((detail) => {
+      setProductDetail(detail);
+      setStatus(detail ? "ready" : "missing");
+      if (detail?.reviews_list) {
+        setReviews((cur) => ({ ...cur, [detail.id]: detail.reviews_list }));
+      }
+    }).catch(() => {
+      setProductDetail(null);
+      setStatus("missing");
+    });
+  }, [productId]);
+
+  if (status === "loading") return <Loading/>;
+  if (status === "missing" || !productDetail) return <Navigate to="/products" replace/>;
+  const product = productDetail;
+  const reviewList = reviews[product.id] || [];
+
+  return <ProductDetailPage product={product} onAdd={(color,size,quantity) => add(product,color,size,quantity)} onWish={() => toggleWish(product.id)} go={go} loggedIn={loggedIn} reviews={reviewList} onSubmitReview={(review) => submitReview(product.id, review)}/>;
 }
 
 function WishlistRoute() {
-  const { add, go, loggedIn, toggleWish, view, wishlist } = useShop();
+  const { add, allProducts, authReady, go, loggedIn, toggleWish, view, wishlist } = useShop();
+  if (!authReady) return <Loading/>;
   if (!loggedIn) return <Navigate to="/login" replace/>;
-  return <WishlistPage products={products.filter((product) => wishlist.includes(product.id))} onRemove={toggleWish} onAdd={(product, size) => add(product, product.colors[0], size)} onView={view} go={go}/>;
+  return <WishlistPage products={allProducts.filter((product) => wishlist.includes(product.id))} onRemove={toggleWish} onAdd={(product, size) => add(product, product.colors[0], size)} onView={view} go={go}/>;
 }
 
 function CartRoute() {
-  const { cart, go, setCart } = useShop();
-  return <CartPage items={cart} go={go} remove={(key) => setCart((items) => items.filter((item) => cartItemKey(item) !== key))} updateQty={(key,difference) => setCart((items) => items.map((item) => cartItemKey(item) === key ? {...item, qty: Math.max(1, item.qty+difference)} : item))}/>;
+  const { cart, flash, go, setCart, loggedIn } = useShop();
+  const handleRemove = (key: string) => {
+    const itemToRemove = cart.find((item) => cartItemKey(item) === key);
+    if (!itemToRemove) return;
+    if (!loggedIn) {
+      setCart((items) => items.filter((item) => cartItemKey(item) !== key));
+      return;
+    }
+    cartApi.remove(0, { product_id: itemToRemove.product.id, color: itemToRemove.color, size: itemToRemove.size })
+      .then((res) => { if (res?.cart?.items) setCart(toCartItems(res.cart.items)); })
+      .catch((err) => flash(errorMessage(err, "Could not remove this item.")));
+  };
+  const handleUpdate = (key: string, difference: number) => {
+    const itemToUpdate = cart.find((item) => cartItemKey(item) === key);
+    if (!itemToUpdate) return;
+    const newQty = Math.max(1, itemToUpdate.qty + difference);
+    if (!loggedIn) {
+      setCart((items) => items.map((item) => cartItemKey(item) === key ? {...item, qty: newQty} : item));
+      return;
+    }
+    cartApi.update(0, newQty, { product_id: itemToUpdate.product.id, color: itemToUpdate.color, size: itemToUpdate.size })
+      .then((res) => { if (res?.cart?.items) setCart(toCartItems(res.cart.items)); })
+      .catch((err) => flash(errorMessage(err, "Could not update the quantity.")));
+  };
+  return <CartPage items={cart} go={go} remove={handleRemove} updateQty={handleUpdate}/>;
 }
 
 function CheckoutRoute() {
-  const { cart, go, loggedIn, memberInfo, setMemberInfo } = useShop();
+  const { authReady, cart, go, loggedIn, memberInfo, setMemberInfo, setCart, setLastOrder } = useShop();
+  if (!authReady) return <Loading/>;
   if (!cart.length) return <Navigate to="/cart" replace/>;
-  return <CheckoutPage items={cart} go={go} loggedIn={loggedIn} memberInfo={memberInfo} onSaveInfo={setMemberInfo}/>;
+  // Orders are stored per member on the server, so checkout requires an account.
+  if (!loggedIn) return <Navigate to="/login" replace/>;
+
+  // Errors propagate to the checkout page, which shows them above the form.
+  const handlePlaceOrder = async (info: MemberInfo, payment: string, saveAddress: boolean) => {
+    const res = await ordersApi.checkout({
+      firstName: info.firstName,
+      lastName: info.lastName,
+      email: info.email,
+      phone: info.phone,
+      address: info.address,
+      city: info.city,
+      province: info.province,
+      postalCode: info.postalCode,
+      country: info.country,
+      saveAddress,
+      payment_method: payment,
+    });
+    setLastOrder(res.order);
+    if (saveAddress) setMemberInfo(info);
+    setCart([]);
+    go("confirmed");
+  };
+
+  return <CheckoutPage items={cart} go={go} loggedIn={loggedIn} memberInfo={memberInfo} onSaveInfo={setMemberInfo} onPlaceOrder={handlePlaceOrder}/>;
 }
 
 function ConfirmationRoute() {
-  const { cart, go } = useShop();
-  return <main><section className="confirmation"><i><Icon name="check" size={36}/></i><span className="eyebrow">THANK YOU, ARAYA</span><h1>ORDER PLACED<br/>SUCCESSFULLY.</h1><p>Your order <b>#NM-250621-0914</b> is confirmed.<br/>We’ll let you know when it’s on its way.</p><div><span>ORDER DATE <b>21 JUN 2025</b></span><span>TOTAL <b>฿{cart.reduce((sum,item)=>sum+item.product.price*item.qty,0).toLocaleString()}</b></span><span>STATUS <b>PAID</b></span></div><Button onClick={() => go("account")}>VIEW MY ORDERS</Button></section></main>;
+  const { go, lastOrder } = useShop();
+  if (!lastOrder) return <Navigate to="/" replace/>;
+  const recipientName = (lastOrder.ship_name || "").toUpperCase();
+
+  return <main><section className="confirmation"><i><Icon name="check" size={36}/></i><span className="eyebrow">THANK YOU{recipientName ? `, ${recipientName}` : ""}</span><h1>ORDER PLACED<br/>SUCCESSFULLY.</h1><p>Your order <b>#{lastOrder.order_number}</b> is confirmed.<br/>We’ll let you know when it’s on its way.</p><div><span>ORDER DATE <b>{lastOrder.formatted_date}</b></span><span>TOTAL <b>฿{Number(lastOrder.total_amount).toLocaleString()}</b></span><span>STATUS <b>{lastOrder.status.toUpperCase()}</b></span></div><Button onClick={() => go("account")}>VIEW MY ORDERS</Button></section></main>;
 }
 
 function LoginRoute() {
-  const { go, setLoggedIn } = useShop();
-  return <LoginPage go={go} onSuccess={() => { setLoggedIn(true); go("home"); }}/>;
+  const { flash, go, setLoggedIn, setMemberInfo } = useShop();
+  return <LoginPage go={go} onSuccess={async () => {
+    try {
+      const user = await authApi.me();
+      if (user) {
+        setLoggedIn(true);
+        setMemberInfo(mapUserToMemberInfo(user));
+      }
+    } catch (err) {
+      flash(errorMessage(err, "Could not load your account."));
+    }
+    go("home");
+  }}/>;
 }
 
 function RegisterRoute() {
-  const { go, setLoggedIn } = useShop();
-  return <RegisterPage go={go} onSuccess={() => { setLoggedIn(true); go("home"); }}/>;
+  const { flash, go, setLoggedIn, setMemberInfo } = useShop();
+  return <RegisterPage go={go} onSuccess={async () => {
+    try {
+      const user = await authApi.me();
+      if (user) {
+        setLoggedIn(true);
+        setMemberInfo(mapUserToMemberInfo(user));
+      }
+    } catch (err) {
+      flash(errorMessage(err, "Could not load your account."));
+    }
+    go("home");
+  }}/>;
 }
 
 function AccountRoute() {
-  const { go, loggedIn, memberInfo, setLoggedIn, setMemberInfo } = useShop();
+  const { authReady, flash, go, loggedIn, memberInfo, resetSession, setMemberInfo } = useShop();
+  if (!authReady) return <Loading/>;
   if (!loggedIn) return <Navigate to="/login" replace/>;
-  return <AccountPage memberInfo={memberInfo} go={go} onSaveInfo={setMemberInfo} onLogout={() => { setLoggedIn(false); go("home"); }}/>;
+  return <AccountPage memberInfo={memberInfo} go={go} onSaveInfo={async (info) => {
+    try {
+      const res = await authApi.updateProfile({
+        first_name: info.firstName,
+        last_name: info.lastName,
+        email: info.email,
+        phone: info.phone,
+        address: info.address,
+        city: info.city,
+        province: info.province,
+        postal_code: info.postalCode,
+        country: info.country,
+      });
+      if (res && res.user) {
+        setMemberInfo(mapUserToMemberInfo(res.user));
+      }
+      flash("Profile saved");
+    } catch (err) {
+      flash(errorMessage(err, "Could not save your profile."));
+    }
+  }} onLogout={async () => {
+    try {
+      await authApi.logout();
+    } catch (err) {
+      flash(errorMessage(err, "Logout failed."));
+      return;
+    }
+    resetSession();
+    go("home");
+  }}/>;
 }
 
 function NotFoundRoute() {
@@ -212,7 +450,8 @@ const router = createBrowserRouter([
       { path: "*", Component: NotFoundRoute },
     ],
   },
-]);
+// No trailing slash, so both "/shop" and "/shop/" match.
+], { basename: __ROUTER_BASE__.replace(/\/+$/, "") || "/" });
 
 export default function App() {
   return <RouterProvider router={router}/>;

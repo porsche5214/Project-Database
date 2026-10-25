@@ -1,4 +1,6 @@
-import { FormEvent, ReactNode, useMemo, useState } from "react";
+import { authApi } from "../api/auth";
+import { ordersApi, type ApiOrder } from "../api/orders";
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { photos } from "../data/products";
 import { cartItemKey, type CartItem, type MemberInfo, type Page, type Product } from "../types/shop";
 import { Button, CheckoutField, Empty, Field, Icon, SectionTitle, Stars } from "../components/ui";
@@ -83,6 +85,16 @@ export function ProductsPage({ products, renderCards, query, setQuery }: { produ
   </main>;
 }
 
+// Progress of the latest order, driven by its real status.
+function OrderTimeline({ status }: { status: string }) {
+  if (status === "cancelled") {
+    return <div className="timeline"><div className="done"><i><Icon name="check"/></i><strong>ORDER CANCELLED</strong><span>STOCK RETURNED</span></div></div>;
+  }
+  const steps = [["pending", "ORDER PLACED"], ["paid", "PAID"], ["shipped", "SHIPPED"], ["completed", "COMPLETED"]];
+  const current = steps.findIndex(([key]) => key === status);
+  return <div className="timeline">{steps.map(([key, label], index) => <div className={index <= current ? "done" : ""} key={key}><i>{index <= current ? <Icon name="check"/> : index + 1}</i><strong>{label}</strong><span>{index <= current ? "DONE" : "PENDING"}</span></div>)}</div>;
+}
+
 export function Filter({ title, options, selected, onToggle, chips = false }: { title: string; options: string[]; selected: string[]; onToggle: (value: string) => void; chips?: boolean }) {
   return <div className="filter-group"><strong>{title}</strong><div className={chips ? "filter-chips" : "filter-options"}>{options.map((x) => chips ? <button key={x} className={selected.includes(x) ? "selected" : ""} onClick={() => onToggle(x)} aria-pressed={selected.includes(x)}>{x}</button> : <label key={x}><input type="checkbox" checked={selected.includes(x)} onChange={() => onToggle(x)}/><span>{x}</span></label>)}</div></div>;
 }
@@ -125,15 +137,35 @@ export function Summary({ subtotal, action, onAction, actionType = "button" }: {
   return <aside className="summary"><h2>ORDER SUMMARY</h2><div><span>Subtotal</span><b>฿{subtotal.toLocaleString()}</b></div><div><span>Shipping</span><b>{shipping ? `฿${shipping}` : "COMPLIMENTARY"}</b></div><div className="summary-total"><span>TOTAL</span><strong>฿{(subtotal + shipping).toLocaleString()}</strong></div><Button type={actionType} onClick={onAction}>{action}</Button><p>SECURE CHECKOUT · EASY RETURNS</p></aside>;
 }
 
-export function Checkout({ items, go, loggedIn, memberInfo, onSaveInfo }: { items: { product: Product; qty: number; color: string; size: string }[]; go: (p: Page) => void; loggedIn: boolean; memberInfo: MemberInfo; onSaveInfo: (info: MemberInfo) => void }) {
+export function Checkout({ items, go, loggedIn, memberInfo, onSaveInfo, onPlaceOrder }: { items: { product: Product; qty: number; color: string; size: string }[]; go: (p: Page) => void; loggedIn: boolean; memberInfo: MemberInfo; onSaveInfo: (info: MemberInfo) => void; onPlaceOrder?: (info: MemberInfo, payment: string, saveAddress: boolean) => Promise<boolean | void> }) {
   const subtotal = items.reduce((s, x) => s + x.product.price * x.qty, 0);
   const emptyInfo: MemberInfo = { email:"", phone:"", firstName:"", lastName:"", address:"", city:"", province:"", postalCode:"", country:"Thailand" };
   const [info, setInfo] = useState<MemberInfo>(loggedIn ? memberInfo : emptyInfo);
   const [payment, setPayment] = useState("card");
   const [saveAddress, setSaveAddress] = useState(loggedIn);
   const update = (key: keyof MemberInfo, value: string) => setInfo((current) => ({...current, [key]: value}));
-  const placeOrder = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (loggedIn && saveAddress) onSaveInfo(info); go("confirmed"); };
+  const [submitting, setSubmitting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
+  const placeOrder = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (submitting) return;
+    setCheckoutError("");
+    if (onPlaceOrder) {
+      setSubmitting(true);
+      try {
+        await onPlaceOrder(info, payment, saveAddress);
+      } catch (err: any) {
+        setCheckoutError(err.getFirstError ? err.getFirstError() : err.message || "Checkout failed");
+      } finally {
+        setSubmitting(false);
+      }
+    } else {
+      if (loggedIn && saveAddress) onSaveInfo(info);
+      go("confirmed");
+    }
+  };
   return <main className="checkout-page"><div className="page-heading"><span className="eyebrow">{loggedIn ? "MEMBER CHECKOUT" : "GUEST CHECKOUT"}</span><h1>CHECKOUT</h1></div><form className="checkout-layout" onSubmit={placeOrder}><div>
+    {checkoutError && <p className="validation" style={{color: "var(--color-primary, red)", marginBottom: "1rem"}}>{checkoutError}</p>}
     <section className="checkout-block"><div className="block-title"><span>01</span><h2>CONTACT INFORMATION</h2></div><div className="checkout-form two-inputs"><CheckoutField label="EMAIL" type="email" value={info.email} onChange={(v) => update("email", v)}/><CheckoutField label="PHONE NUMBER" value={info.phone} onChange={(v) => update("phone", v)}/></div></section>
     <section className="checkout-block"><div className="block-title"><span>02</span><h2>SHIPPING INFORMATION</h2></div><div className="checkout-form"><div className="two-inputs"><CheckoutField label="FIRST NAME" value={info.firstName} onChange={(v) => update("firstName", v)}/><CheckoutField label="LAST NAME" value={info.lastName} onChange={(v) => update("lastName", v)}/></div><CheckoutField label="ADDRESS" value={info.address} onChange={(v) => update("address", v)}/><div className="two-inputs"><CheckoutField label="CITY / DISTRICT" value={info.city} onChange={(v) => update("city", v)}/><CheckoutField label="PROVINCE / STATE" value={info.province} onChange={(v) => update("province", v)}/></div><div className="two-inputs"><CheckoutField label="POSTAL CODE" value={info.postalCode} onChange={(v) => update("postalCode", v)}/><CheckoutField label="COUNTRY" value={info.country} onChange={(v) => update("country", v)}/></div>{loggedIn && <label className="save-address"><input type="checkbox" checked={saveAddress} onChange={(e) => setSaveAddress(e.target.checked)}/> Save this address for future orders</label>}</div></section>
     <section className="checkout-block"><div className="block-title"><span>03</span><h2>PAYMENT METHOD</h2></div><div className="payment-methods">{[["card","Credit / Debit Card","Visa, Mastercard, JCB"],["promptpay","PromptPay","Pay securely via QR code"],["transfer","Bank Transfer","Transfer from your bank account"],["cod","Cash on Delivery","Pay when your order arrives"]].map(([id,title,description]) => <label className={payment === id ? "selected" : ""} key={id}><input type="radio" name="payment" value={id} checked={payment === id} onChange={() => setPayment(id)}/><i/><span><strong>{title}</strong><small>{description}</small></span></label>)}</div></section>
@@ -142,22 +174,80 @@ export function Checkout({ items, go, loggedIn, memberInfo, onSaveInfo }: { item
 }
 
 export function Auth({ mode, go, onSuccess, message }: { mode: "login" | "register"; go: (p: Page) => void; onSuccess: () => void; message?: string }) {
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const [errorText, setErrorText] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setErrorText("");
+    const formData = new FormData(event.currentTarget);
+
     if (mode === "register") {
-      const formData = new FormData(event.currentTarget);
       const confirmation = event.currentTarget.elements.namedItem("confirmPassword") as HTMLInputElement;
       const matches = formData.get("password") === formData.get("confirmPassword");
       confirmation.setCustomValidity(matches ? "" : "Passwords must match.");
       if (!matches) { confirmation.reportValidity(); return; }
+
+      setLoading(true);
+      try {
+        await authApi.register({
+          username: String(formData.get("username") || ""),
+          email: String(formData.get("email") || ""),
+          password: String(formData.get("password") || ""),
+          first_name: String(formData.get("firstName") || ""),
+          last_name: String(formData.get("lastName") || ""),
+          phone: String(formData.get("phone") || ""),
+          address: String(formData.get("address") || ""),
+        });
+        onSuccess();
+      } catch (err: any) {
+        setErrorText(err.getFirstError ? err.getFirstError() : err.message || "Registration failed");
+      } finally {
+        setLoading(false);
+      }
+      return;
     }
-    onSuccess();
+
+    if (mode === "login") {
+      setLoading(true);
+      try {
+        await authApi.login({
+          login: String(formData.get("username") || ""),
+          password: String(formData.get("password") || ""),
+        });
+        onSuccess();
+      } catch (err: any) {
+        setErrorText(err.getFirstError ? err.getFirstError() : err.message || "Invalid credentials");
+      } finally {
+        setLoading(false);
+      }
+    }
   };
-  return <main className="auth-page"><div className="auth-image"><img src={photos[7]} alt="NaeMak campaign"/><span>BE BOLD.<br/>BE NAEMAK.</span></div><form className={`auth-form auth-form-${mode}`} onSubmit={submit}><span className="eyebrow">NAEMAK MEMBERS</span><h1>{mode === "login" ? "WELCOME BACK" : "CREATE ACCOUNT"}</h1><p>{message || (mode === "login" ? "Log in to access your wardrobe, orders and wishlist." : "Join NaeMak for a more personal shopping experience.")}</p>{mode === "register" && <div className="two-inputs"><Field label="FIRST NAME" name="firstName"/><Field label="LAST NAME" name="lastName"/></div>}<Field label={mode === "login" ? "USERNAME OR EMAIL" : "USERNAME"} name="username" type="text"/>{mode === "register" && <Field label="EMAIL" name="email" type="email"/>}<Field label="PASSWORD" name="password" type="password"/>{mode === "register" && <><Field label="CONFIRM PASSWORD" name="confirmPassword" type="password"/><Field label="PHONE" name="phone"/><Field label="ADDRESS" name="address"/></>}<div className="auth-extra">{mode === "login" && <label><input type="checkbox"/> Remember me</label>}<button type="button">{mode === "login" ? "Forgot Password?" : "Privacy policy"}</button></div><Button type="submit">{mode === "login" ? "LOG IN" : "CREATE ACCOUNT"}</Button><div className="auth-switch">{mode === "login" ? "NEW TO NAEMAK?" : "ALREADY HAVE AN ACCOUNT?"}<button type="button" onClick={() => go(mode === "login" ? "register" : "login")}>{mode === "login" ? "CREATE AN ACCOUNT" : "LOG IN"}</button></div></form></main>;
+
+  return <main className="auth-page"><div className="auth-image"><img src={photos[7]} alt="NaeMak campaign"/><span>BE BOLD.<br/>BE NAEMAK.</span></div><form className={`auth-form auth-form-${mode}`} onSubmit={submit}><span className="eyebrow">NAEMAK MEMBERS</span><h1>{mode === "login" ? "WELCOME BACK" : "CREATE ACCOUNT"}</h1><p>{errorText || message || (mode === "login" ? "Log in to access your wardrobe, orders and wishlist." : "Join NaeMak for a more personal shopping experience.")}</p>{mode === "register" && <div className="two-inputs"><Field label="FIRST NAME" name="firstName"/><Field label="LAST NAME" name="lastName"/></div>}<Field label={mode === "login" ? "USERNAME OR EMAIL" : "USERNAME"} name="username" type="text"/>{mode === "register" && <Field label="EMAIL" name="email" type="email"/>}<Field label="PASSWORD" name="password" type="password"/>{mode === "register" && <><Field label="CONFIRM PASSWORD" name="confirmPassword" type="password"/><Field label="PHONE" name="phone"/><Field label="ADDRESS" name="address"/></>}<div className="auth-extra">{mode === "login" && <label><input type="checkbox"/> Remember me</label>}<button type="button">{mode === "login" ? "Forgot Password?" : "Privacy policy"}</button></div><Button type="submit" disabled={loading}>{mode === "login" ? "LOG IN" : "CREATE ACCOUNT"}</Button><div className="auth-switch">{mode === "login" ? "NEW TO NAEMAK?" : "ALREADY HAVE AN ACCOUNT?"}<button type="button" onClick={() => go(mode === "login" ? "register" : "login")}>{mode === "login" ? "CREATE AN ACCOUNT" : "LOG IN"}</button></div></form></main>;
 }
 
 export function Account({ memberInfo, go, onSaveInfo, onLogout }: { memberInfo: MemberInfo; go: (page: Page) => void; onSaveInfo: (info: MemberInfo) => void; onLogout: () => void }) {
   const [tab, setTab] = useState<"Profile" | "Membership" | "Orders">("Profile");
+  const [orders, setOrders] = useState<ApiOrder[]>([]);
+  const [ordersState, setOrdersState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [ordersError, setOrdersError] = useState("");
+  useEffect(() => {
+    if (tab !== "Orders") return;
+    setOrdersState("loading");
+    ordersApi.list()
+      .then((list) => { setOrders(list || []); setOrdersState("ready"); })
+      .catch((err: any) => { setOrdersError(err?.message || "Could not load your orders."); setOrdersState("error"); });
+  }, [tab]);
+  const confirmReceived = async (orderId: number) => {
+    setOrdersError("");
+    try {
+      const updated = await ordersApi.confirmReceived(orderId);
+      setOrders((current) => current.map((o) => o.order_id === orderId ? updated : o));
+    } catch (err: any) {
+      setOrdersError(err?.getFirstError ? err.getFirstError() : err?.message || "Could not update this order.");
+    }
+  };
   const [editing, setEditing] = useState(false);
   const [info, setInfo] = useState(memberInfo);
   const update = (key: keyof MemberInfo, value: string) => setInfo((current) => ({...current, [key]: value}));
@@ -171,7 +261,7 @@ export function Account({ memberInfo, go, onSaveInfo, onLogout }: { memberInfo: 
       </aside>
       {tab === "Profile" && <section className="profile-panel"><div className="section-title"><div><span className="eyebrow">PERSONAL DETAILS</span><h2>MY PROFILE</h2></div><button onClick={() => setEditing(!editing)}>{editing ? "CANCEL" : "EDIT PROFILE"}</button></div><div className="profile-form"><div className="two-inputs"><CheckoutField label="FIRST NAME" value={info.firstName} onChange={(value) => update("firstName",value)}/><CheckoutField label="LAST NAME" value={info.lastName} onChange={(value) => update("lastName",value)}/></div><CheckoutField label="EMAIL" type="email" value={info.email} onChange={(value) => update("email",value)}/><CheckoutField label="PHONE NUMBER" value={info.phone} onChange={(value) => update("phone",value)}/><CheckoutField label="SAVED ADDRESS" value={info.address} onChange={(value) => update("address",value)}/><div className="two-inputs"><CheckoutField label="CITY / DISTRICT" value={info.city} onChange={(value) => update("city",value)}/><CheckoutField label="PROVINCE / STATE" value={info.province} onChange={(value) => update("province",value)}/></div><div className="two-inputs"><CheckoutField label="POSTAL CODE" value={info.postalCode} onChange={(value) => update("postalCode",value)}/><CheckoutField label="COUNTRY" value={info.country} onChange={(value) => update("country",value)}/></div>{editing && <Button onClick={() => { onSaveInfo(info); setEditing(false); }}>SAVE CHANGES</Button>}</div></section>}
       {tab === "Membership" && <MemberProgram memberInfo={memberInfo} onOrders={() => setTab("Orders")} onWishlist={() => go("wishlist")}/>}
-      {tab === "Orders" && <section className="orders"><div className="section-title"><div><span className="eyebrow">PURCHASES</span><h2>ORDER HISTORY</h2></div></div><article className="order-card"><div><span>ORDER</span><strong>#NM-250619-0842</strong></div><div><span>DATE</span><strong>19 JUN 2025</strong></div><div><span>TOTAL</span><strong>฿5,180</strong></div><div><span>STATUS</span><i className="status">SHIPPED</i></div><button>VIEW DETAILS <Icon name="arrow"/></button></article><div className="timeline"><div className="done"><i><Icon name="check"/></i><strong>ORDER PLACED</strong><span>19 JUN</span></div><div className="done"><i><Icon name="check"/></i><strong>PAID</strong><span>19 JUN</span></div><div className="done"><i><Icon name="check"/></i><strong>SHIPPED</strong><span>20 JUN</span></div><div><i>4</i><strong>COMPLETED</strong><span>EST. 22 JUN</span></div></div></section>}
+      {tab === "Orders" && <section className="orders"><div className="section-title"><div><span className="eyebrow">PURCHASES</span><h2>ORDER HISTORY</h2></div></div>{ordersError && <p className="validation">{ordersError}</p>}{ordersState === "loading" && <p className="eyebrow">LOADING ORDERS…</p>}{ordersState === "ready" && !orders.length && <Empty title="No orders yet." text="Your orders will appear here after checkout." action="START SHOPPING" onAction={() => go("products")}/>}{orders.map((ord) => (<article className="order-card" key={ord.order_id}><div><span>ORDER</span><strong>#{ord.order_number}</strong></div><div><span>DATE</span><strong>{ord.formatted_date || ord.order_date}</strong></div><div><span>TOTAL</span><strong>฿{Number(ord.total_amount).toLocaleString()}</strong></div><div><span>STATUS</span><i className="status">{String(ord.status).toUpperCase()}</i></div>{ord.status === "shipped" ? <button onClick={() => confirmReceived(ord.order_id)}>MARK AS RECEIVED <Icon name="check"/></button> : <span/>}</article>))}{orders[0] && <OrderTimeline status={orders[0].status}/>}</section>}
     </div>
   </main>;
 }

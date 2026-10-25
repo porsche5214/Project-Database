@@ -7,20 +7,20 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
+// สมัคร / เข้าสู่ระบบผ่าน API ที่หน้า React ใช้ (/api/register, /api/login)
 class AuthTest extends TestCase
 {
     use RefreshDatabase;
 
     public function test_user_can_register()
     {
-        $response = $this->post('/register', [
+        $response = $this->postJson('/api/register', [
             'username' => 'testuser',
             'email' => 'test@example.com',
             'password' => 'password123',
-            'password_confirmation' => 'password123',
         ]);
 
-        $response->assertRedirect('/profile');
+        $response->assertCreated()->assertJsonPath('user.username', 'testuser');
         $this->assertAuthenticated();
         $this->assertDatabaseHas('member', [
             'username' => 'testuser',
@@ -37,14 +37,13 @@ class AuthTest extends TestCase
             'password_hash' => Hash::make('password123'),
         ]);
 
-        $response = $this->post('/register', [
+        $response = $this->postJson('/api/register', [
             'username' => 'newuser',
             'email' => 'test@example.com',
             'password' => 'password123',
-            'password_confirmation' => 'password123',
         ]);
 
-        $response->assertSessionHasErrors('email');
+        $response->assertStatus(422)->assertJsonValidationErrors('email');
         $this->assertGuest();
     }
 
@@ -56,12 +55,12 @@ class AuthTest extends TestCase
             'password_hash' => Hash::make('password123'),
         ]);
 
-        $response = $this->post('/login', [
-            'email' => 'test@example.com',
+        $response = $this->postJson('/api/login', [
+            'login' => 'test@example.com',
             'password' => 'password123',
         ]);
 
-        $response->assertRedirect('/profile');
+        $response->assertOk()->assertJsonPath('user.email', 'test@example.com');
         $this->assertAuthenticatedAs($member);
     }
 
@@ -73,18 +72,17 @@ class AuthTest extends TestCase
             'password_hash' => Hash::make('password123'),
         ]);
 
-        $response = $this->post('/login', [
-            'email' => 'test@example.com',
+        $response = $this->postJson('/api/login', [
+            'login' => 'test@example.com',
             'password' => 'wrongpassword',
         ]);
 
-        $response->assertSessionHasErrors('email');
+        $response->assertStatus(422)->assertJsonValidationErrors('login');
         $this->assertGuest();
     }
 
-    public function test_guest_is_redirected_to_login_when_accessing_profile()
+    public function test_guest_cannot_update_profile()
     {
-        $response = $this->get('/profile');
-        $response->assertRedirect('/login');
+        $this->postJson('/api/profile', ['email' => 'x@example.com'])->assertStatus(401);
     }
 }

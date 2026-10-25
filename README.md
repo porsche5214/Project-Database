@@ -38,6 +38,8 @@ cp .env.example .env
 ```
 
 เปิดเบราว์เซอร์ที่ `http://localhost` (ทดสอบ DB: `http://localhost/api/products`)
+
+> **หน้าเว็บหลักคือ React ที่ `/shop`** — URL เดิมของหน้า Blade (`/`, `/products`, `/cart`, `/checkout`, `/profile`, `/login`, ...) จะ redirect ไปหน้า React ที่ตรงกัน ต้อง build frontend ก่อน (ดูหัวข้อ "วิธี build frontend" ด้านล่าง) และ build ใหม่ทุกครั้งที่แก้โค้ดใน `frontend/`
 ถ้า port 80 ชนกับโปรแกรมอื่น ให้ใส่ `APP_PORT=8000` ใน `.env` แล้วเปิด `http://localhost:8000`
 
 บัญชีตัวอย่างจาก seeder (รหัส `password123`): `admin@naemak.test` (admin), `somchai@naemak.test` (member)
@@ -101,7 +103,7 @@ migration อยู่ใน `database/migrations/2026_10_10_*` หนึ่ง�
 | 1 | Database Design Lead — ดูแล schema/migration ทั้งหมด, ER/EER diagram, Relational Mapping |
 | 2 | Backend: Auth + Cart + Checkout |
 | 3 | Backend: Products page + ฟีเจอร์เสริม (Rating/Reviews) |
-| 4 | Frontend/UI — wireframe และหน้าเว็บ (Blade views) |
+| 4 | Frontend/UI — wireframe และหน้าเว็บ (React ใน `frontend/`) |
 | 5 | Wish List feature + รวมโค้ด (integration/QA) + พรีเซนเทชัน |
 
 ---
@@ -112,3 +114,25 @@ migration อยู่ใน `database/migrations/2026_10_10_*` หนึ่ง�
 3. Low-fidelity prototype
 4. ไฟล์พรีเซนเทชัน
 5. Source code
+
+
+---
+
+## วิธี build frontend
+โปรเจกต์ frontend อยู่ที่โฟลเดอร์ `frontend/Build NaeMak E-commerce Website (Copy)-2/` (React + Vite + TypeScript)
+สามารถติดตั้ง dependencies และ build ผ่าน Docker / Sail โดยไม่ต้องติดตั้ง Node/pnpm บนเครื่อง host:
+
+```bash
+# 1. ติดตั้ง dependencies ใน frontend ผ่าน Sail
+./vendor/bin/sail npx pnpm --prefix "frontend/Build NaeMak E-commerce Website (Copy)-2" install
+
+# 2. Build frontend (ไฟล์จะถูกส่งไปที่ public/spa/ แล้วเปิดดูที่ http://localhost/shop)
+./vendor/bin/sail npx pnpm --prefix "frontend/Build NaeMak E-commerce Website (Copy)-2" build
+
+# หรือหากต้องการรัน Vite dev server พร้อม proxy /api
+./vendor/bin/sail npx pnpm --prefix "frontend/Build NaeMak E-commerce Website (Copy)-2" dev --host
+```
+
+> **หมายเหตุ:** ผลลัพธ์ build ใน `public/spa/` ถูกกำหนดไว้ใน `.gitignore` เรียบร้อยแล้ว ห้าม commit ลง Git
+>
+> ห้ามตั้งชื่อโฟลเดอร์ build เป็น `public/shop/` เพราะจะชนกับ route `/shop` ของ Laravel (เซิร์ฟเวอร์ของ Sail จะตอบ `/shop` เองแทนที่จะส่งให้ Laravel ทำให้หน้าเว็บขาวหรือ 404) ถ้าเครื่องไหนยังมีโฟลเดอร์ `public/shop/` จาก build เก่า ให้ลบทิ้ง

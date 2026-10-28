@@ -3,12 +3,13 @@ import type { Product } from "../types/shop";
 import { Icon, Stars } from "./ui";
 
 export function ProductCard({ product, wishlisted, onWish, onView, onAdd, footer }: { product: Product; wishlisted: boolean; onWish: () => void; onView: () => void; onAdd: () => void; footer?: ReactNode }) {
-  return <article className="product-card">
+  const soldOut = product.in_stock === false;
+  return <article className={`product-card ${soldOut ? "sold-out" : ""}`}>
     <div className="product-image" onClick={onView}>
       <img src={product.image} alt={product.name}/>
-      {product.badge && <span className="product-badge">{product.badge}</span>}
+      {soldOut ? <span className="product-badge sold-out">SOLD OUT</span> : product.badge && <span className="product-badge">{product.badge}</span>}
       <button className={`heart ${wishlisted ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); onWish(); }} aria-label="Add to wishlist"><Icon name="heart"/></button>
-      <button className="quick-add" onClick={(e) => { e.stopPropagation(); onAdd(); }} aria-label={`Quick add ${product.name} to cart`}>QUICK ADD</button>
+      {!soldOut && <button className="quick-add" onClick={(e) => { e.stopPropagation(); onAdd(); }} aria-label={`Quick add ${product.name} to cart`}>QUICK ADD</button>}
     </div>
     <button className="product-info" onClick={onView}>
       <span className="eyebrow">{product.brand}</span><strong>{product.name}</strong>

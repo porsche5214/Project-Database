@@ -36,19 +36,38 @@ export function Home({ go, cards }: { go: (p: Page) => void; cards: ReactNode })
 export function ProductsPage({ products, renderCards, query, setQuery }: { products: Product[]; renderCards: (items: Product[]) => ReactNode[]; query: string; setQuery: (v: string) => void }) {
   const [filters, setFilters] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
+  const [genders, setGenders] = useState<string[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
   const [sizes, setSizes] = useState<string[]>([]);
   const [colors, setColors] = useState<string[]>([]);
-  const [maxPrice, setMaxPrice] = useState(4200);
+  const [inStockOnly, setInStockOnly] = useState(false);
+  // Filter options come from the products the API returned, so every option can match something.
+  const options = useMemo(() => {
+    const unique = (values: string[]) => [...new Set(values)].sort((a, b) => a.localeCompare(b));
+    const sizeRank = (size: string) => { const i = SIZE_ORDER.indexOf(size); return i === -1 ? 100 + (Number(size) || 0) : i; };
+    return {
+      categories: unique(products.map((p) => p.category)),
+      genders: GENDER_OPTIONS.filter((g) => products.some((p) => p.gender === g.value)),
+      brands: unique(products.map((p) => p.brand)),
+      sizes: [...new Set(products.flatMap((p) => p.sizes))].sort((a, b) => sizeRank(a) - sizeRank(b) || a.localeCompare(b)),
+      colors: unique(products.flatMap((p) => p.colors)),
+      priceCap: Math.max(1000, Math.ceil(Math.max(0, ...products.map((p) => p.price)) / 500) * 500),
+    };
+  }, [products]);
+  const [maxPrice, setMaxPrice] = useState<number | null>(null);
+  const priceLimit = maxPrice ?? options.priceCap;
   const [sort, setSort] = useState("recommended");
   const toggle = (value: string, selected: string[], update: (values: string[]) => void) => update(selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value]);
   const visibleProducts = useMemo(() => {
     const matching = products.filter((product) => {
-      const categoryMatch = !categories.length || categories.some((category) => product.category === category || product.gender === category);
-      const brandMatch = !brands.length || brands.some((brand) => product.brand === brand.toUpperCase());
+      const categoryMatch = !categories.length || categories.includes(product.category);
+      // Unisex items show up under Men and Women too.
+      const genderMatch = !genders.length || genders.includes(product.gender) || product.gender === "unisex";
+      const brandMatch = !brands.length || brands.includes(product.brand);
       const sizeMatch = !sizes.length || sizes.some((size) => product.sizes.includes(size));
-      const colorMatch = !colors.length || colors.some((color) => product.colors.some((productColor) => productColor.toLowerCase() === color.toLowerCase()));
-      return categoryMatch && brandMatch && sizeMatch && colorMatch && product.price <= maxPrice;
+      const colorMatch = !colors.length || colors.some((color) => product.colors.includes(color));
+      const stockMatch = !inStockOnly || product.in_stock !== false;
+      return categoryMatch && genderMatch && brandMatch && sizeMatch && colorMatch && stockMatch && product.price <= priceLimit;
     });
     return [...matching].sort((a, b) => {
       if (sort === "newest") return b.id - a.id;
@@ -57,14 +76,17 @@ export function ProductsPage({ products, renderCards, query, setQuery }: { produ
       if (sort === "rating") return b.rating - a.rating;
       return 0;
     });
-  }, [brands, categories, colors, maxPrice, products, sizes, sort]);
+  }, [brands, categories, colors, genders, inStockOnly, priceLimit, products, sizes, sort]);
+  const activeFilters = categories.length + genders.length + brands.length + sizes.length + colors.length + (inStockOnly ? 1 : 0) + (maxPrice !== null ? 1 : 0);
   const clearFilters = () => {
     setQuery("");
     setCategories([]);
+    setGenders([]);
     setBrands([]);
     setSizes([]);
     setColors([]);
-    setMaxPrice(4200);
+    setInStockOnly(false);
+    setMaxPrice(null);
     setSort("recommended");
   };
   const cards = renderCards(visibleProducts);
@@ -74,11 +96,14 @@ export function ProductsPage({ products, renderCards, query, setQuery }: { produ
     <div className="listing-layout">
       <aside className={filters ? "filters open" : "filters"}>
         {query && <button className="clear-search" onClick={() => setQuery("")}>CLEAR SEARCH ×</button>}
-        <Filter title="CATEGORY" options={["Men", "Women", "Unisex", "T-Shirts", "Shirts", "Pants", "Outerwear", "Accessories"]} selected={categories} onToggle={(value) => toggle(value, categories, setCategories)}/>
-        <Filter title="BRAND" options={["NaeMak", "NaeMak Studio", "N/M Essentials"]} selected={brands} onToggle={(value) => toggle(value, brands, setBrands)}/>
-        <Filter title="SIZE" options={["XS", "S", "M", "L", "XL"]} selected={sizes} onToggle={(value) => toggle(value, sizes, setSizes)} chips/>
-        <div className="filter-group"><strong>COLOR</strong><div className="swatches">{["Black","White","Gray","Stone"].map((color) => <button key={color} className={`${color.toLowerCase()} ${colors.includes(color) ? "selected" : ""}`} onClick={() => toggle(color, colors, setColors)} aria-label={color} aria-pressed={colors.includes(color)}/>)}</div></div>
-        <div className="filter-group"><strong>PRICE</strong><div className="price-inputs"><span>฿ 0</span><span>฿ 5,000</span></div><input type="range" min="0" max="5000" step="100" value={maxPrice} onChange={(event) => setMaxPrice(Number(event.target.value))} aria-label="Maximum price"/></div>
+        {activeFilters > 0 && <button className="clear-search" onClick={clearFilters}>CLEAR FILTERS ({activeFilters}) ×</button>}
+        <Filter title="CATEGORY" options={options.categories} selected={categories} onToggle={(value) => toggle(value, categories, setCategories)}/>
+        <Filter title="GENDER" options={options.genders.map((g) => g.value)} label={(value) => GENDER_OPTIONS.find((g) => g.value === value)?.label ?? value} selected={genders} onToggle={(value) => toggle(value, genders, setGenders)}/>
+        <Filter title="BRAND" options={options.brands} selected={brands} onToggle={(value) => toggle(value, brands, setBrands)}/>
+        <Filter title="SIZE" options={options.sizes} selected={sizes} onToggle={(value) => toggle(value, sizes, setSizes)} chips/>
+        <div className="filter-group"><strong>COLOR</strong><div className="swatches">{options.colors.map((color) => <button key={color} className={`${color.toLowerCase()} ${colors.includes(color) ? "selected" : ""}`} onClick={() => toggle(color, colors, setColors)} aria-label={color} title={color} aria-pressed={colors.includes(color)}/>)}</div>{colors.length > 0 && <small>{colors.join(", ")}</small>}</div>
+        <div className="filter-group"><strong>PRICE</strong><div className="price-inputs"><span>฿ 0</span><span>UP TO ฿ {priceLimit.toLocaleString()}</span></div><input type="range" min="0" max={options.priceCap} step="100" value={priceLimit} onChange={(event) => setMaxPrice(Number(event.target.value))} aria-label="Maximum price"/></div>
+        <div className="filter-group"><strong>AVAILABILITY</strong><div className="filter-options"><label><input type="checkbox" checked={inStockOnly} onChange={(event) => setInStockOnly(event.target.checked)}/><span>In stock only</span></label></div></div>
       </aside>
       {cards.length ? <div className="product-grid listing-grid">{cards}</div> : <Empty title="No products found." text="Try a different name, brand, or category." action="CLEAR FILTERS" onAction={clearFilters}/>}
     </div>
@@ -95,16 +120,42 @@ function OrderTimeline({ status }: { status: string }) {
   return <div className="timeline">{steps.map(([key, label], index) => <div className={index <= current ? "done" : ""} key={key}><i>{index <= current ? <Icon name="check"/> : index + 1}</i><strong>{label}</strong><span>{index <= current ? "DONE" : "PENDING"}</span></div>)}</div>;
 }
 
-export function Filter({ title, options, selected, onToggle, chips = false }: { title: string; options: string[]; selected: string[]; onToggle: (value: string) => void; chips?: boolean }) {
-  return <div className="filter-group"><strong>{title}</strong><div className={chips ? "filter-chips" : "filter-options"}>{options.map((x) => chips ? <button key={x} className={selected.includes(x) ? "selected" : ""} onClick={() => onToggle(x)} aria-pressed={selected.includes(x)}>{x}</button> : <label key={x}><input type="checkbox" checked={selected.includes(x)} onChange={() => onToggle(x)}/><span>{x}</span></label>)}</div></div>;
+const SIZE_ORDER = ["XS", "S", "M", "L", "XL", "XXL", "Free"];
+const GENDER_OPTIONS = [{ value: "male", label: "Men" }, { value: "female", label: "Women" }, { value: "unisex", label: "Unisex" }];
+
+export function Filter({ title, options, selected, onToggle, chips = false, label = (x) => x }: { title: string; options: string[]; selected: string[]; onToggle: (value: string) => void; chips?: boolean; label?: (value: string) => string }) {
+  return <div className="filter-group"><strong>{title}</strong><div className={chips ? "filter-chips" : "filter-options"}>{options.map((x) => chips ? <button key={x} className={selected.includes(x) ? "selected" : ""} onClick={() => onToggle(x)} aria-pressed={selected.includes(x)}>{label(x)}</button> : <label key={x}><input type="checkbox" checked={selected.includes(x)} onChange={() => onToggle(x)}/><span>{label(x)}</span></label>)}</div></div>;
 }
 
-export function ProductDetail({ product, onAdd, onWish, go, loggedIn, reviews, onSubmitReview }: { product: Product; onAdd: (color: string, size: string, quantity: number) => void; onWish: () => void; go: (p: Page) => void; loggedIn: boolean; reviews: ProductReview[]; onSubmitReview: (review: Pick<ProductReview, "title" | "text" | "rating">) => void }) {
-  const [color, setColor] = useState(product.colors[0]);
+type StockVariant = { color: string; size: string; stock: number };
+
+export function ProductDetail({ product, onAdd, onWish, go, loggedIn, reviews, onSubmitReview }: { product: Product & { variants?: StockVariant[] }; onAdd: (color: string, size: string, quantity: number) => void; onWish: () => void; go: (p: Page) => void; loggedIn: boolean; reviews: ProductReview[]; onSubmitReview: (review: Pick<ProductReview, "title" | "text" | "rating">) => void }) {
+  const variants = product.variants ?? [];
+  // Without variant data we can't tell, so assume in stock (the server still rejects over-stock adds).
+  const hasStockInfo = variants.length > 0;
+  const stockOf = (match: (v: StockVariant) => boolean) => variants.filter(match).reduce((sum, v) => sum + v.stock, 0);
+  const sizeStock = (c: string, s: string) => hasStockInfo ? stockOf((v) => v.color === c && v.size === s) : Infinity;
+  const colorStock = (c: string) => hasStockInfo ? stockOf((v) => v.color === c) : Infinity;
+  const soldOut = product.in_stock === false || (hasStockInfo && stockOf(() => true) === 0);
+  // Start on a color that still has stock.
+  const [color, setColor] = useState(product.colors.find((c) => colorStock(c) > 0) ?? product.colors[0]);
   const [size, setSize] = useState("");
   const [qty, setQty] = useState(1);
   const [notice, setNotice] = useState("");
-  const add = () => { if (!size) { setNotice("Please select a size."); return; } onAdd(color, size, qty); };
+  const available = size ? sizeStock(color, size) : colorStock(color);
+  const canAdd = !soldOut && available > 0 && qty <= available;
+  const chooseColor = (c: string) => {
+    setColor(c);
+    // Drop a size that isn't available in the new color.
+    if (size && sizeStock(c, size) <= 0) setSize("");
+    setQty(1);
+  };
+  const chooseSize = (s: string) => { setSize(s); setNotice(""); setQty((q) => Math.max(1, Math.min(q, sizeStock(color, s)))); };
+  const add = () => { if (!size) { setNotice("Please select a size."); return; } if (!canAdd) return; onAdd(color, size, qty); };
+  const stockText = soldOut ? "SOLD OUT"
+    : available <= 0 ? "SOLD OUT IN THIS COLOR"
+    : size && available <= 5 ? `ONLY ${available} LEFT — ORDER SOON`
+    : "IN STOCK — READY TO SHIP";
   return <main className="detail-page">
     <div className="breadcrumbs">HOME / PRODUCTS / {product.category.toUpperCase()} / <b>{product.name.toUpperCase()}</b></div>
     <div className="detail-grid">
@@ -114,10 +165,10 @@ export function ProductDetail({ product, onAdd, onWish, go, loggedIn, reviews, o
         <div className="detail-rating"><Stars value={product.rating}/><span>{product.reviews + reviews.length} REVIEWS</span></div>
         <div className="detail-price">฿{product.price.toLocaleString()}</div>
         <p className="description">A considered essential made for everyday movement. Cut in a relaxed silhouette from premium structured fabric, balancing clean form with effortless comfort.</p>
-        <div className="option"><div><b>COLOR</b><span>{color}</span></div><div className="color-options">{product.colors.map((c) => <button key={c} className={`${c.toLowerCase()} ${color === c ? "selected" : ""}`} onClick={() => setColor(c)} aria-label={c}/>)}</div></div>
-        <div className="option"><div><b>SELECT SIZE</b><button className="size-guide">SIZE GUIDE</button></div><div className="size-options">{product.sizes.map((s) => <button key={s} className={size === s ? "selected" : ""} onClick={() => { setSize(s); setNotice(""); }}>{s}</button>)}</div>{notice && <p className="validation">{notice}</p>}</div>
-        <p className="stock"><i/> IN STOCK — READY TO SHIP</p>
-        <div className="buy-row"><div className="quantity"><button onClick={() => setQty(Math.max(1, qty - 1))} aria-label="Decrease quantity">−</button><span>{qty}</span><button onClick={() => setQty(qty + 1)} aria-label="Increase quantity">+</button></div><Button onClick={add}>ADD TO BAG — ฿{(product.price * qty).toLocaleString()}</Button></div>
+        <div className="option"><div><b>COLOR</b><span>{color}</span></div><div className="color-options">{product.colors.map((c) => <button key={c} className={`${c.toLowerCase()} ${color === c ? "selected" : ""} ${colorStock(c) <= 0 ? "unavailable" : ""}`} onClick={() => chooseColor(c)} aria-label={colorStock(c) <= 0 ? `${c} (sold out)` : c} title={colorStock(c) <= 0 ? `${c} — sold out` : c}/>)}</div></div>
+        <div className="option"><div><b>SELECT SIZE</b><button className="size-guide">SIZE GUIDE</button></div><div className="size-options">{product.sizes.map((s) => { const out = sizeStock(color, s) <= 0; return <button key={s} className={size === s ? "selected" : ""} disabled={out} title={out ? "Sold out" : undefined} onClick={() => chooseSize(s)}>{s}</button>; })}</div>{notice && <p className="validation">{notice}</p>}</div>
+        <p className={`stock ${available <= 0 || soldOut ? "out" : ""}`}><i/> {stockText}</p>
+        <div className="buy-row"><div className="quantity"><button onClick={() => setQty(Math.max(1, qty - 1))} aria-label="Decrease quantity">−</button><span>{qty}</span><button onClick={() => setQty(Math.min(qty + 1, size ? available : qty + 1))} disabled={!!size && qty >= available} aria-label="Increase quantity">+</button></div><Button onClick={add} disabled={!canAdd}>{soldOut || available <= 0 ? "SOLD OUT" : `ADD TO BAG — ฿${(product.price * qty).toLocaleString()}`}</Button></div>
         <Button variant="outline" onClick={onWish}><Icon name="heart"/> ADD TO WISHLIST</Button>
         <div className="detail-notes"><span>COMPLIMENTARY DELIVERY<br/><small>On all orders over ฿2,500</small></span><span>EASY RETURNS<br/><small>Within 14 days of delivery</small></span></div>
       </div>

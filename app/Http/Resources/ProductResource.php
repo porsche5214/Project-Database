@@ -36,6 +36,7 @@ class ProductResource extends JsonResource
             'badge' => $avgRating >= 4.8 ? 'BESTSELLER' : null,
             'colors' => $colors ?: ['Black'],
             'sizes' => $sizes ?: ['M'],
+            'in_stock' => $this->variants ? $this->variants->sum('stock') > 0 : false,
         ];
     }
 }

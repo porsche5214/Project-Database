@@ -3,6 +3,7 @@ export type Page = "home" | "products" | "detail" | "wishlist" | "cart" | "check
 export type Product = {
   id: number; name: string; brand: string; price: number; category: string; gender: string;
   rating: number; reviews: number; image: string; badge?: string; colors: string[]; sizes: string[];
+  in_stock?: boolean;
 };
 
 export type MemberInfo = {

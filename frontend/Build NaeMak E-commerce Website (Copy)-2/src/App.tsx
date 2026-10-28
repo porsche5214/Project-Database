@@ -282,7 +282,7 @@ function ProductDetailRoute() {
   const product = productDetail;
   const reviewList = reviews[product.id] || [];
 
-  return <ProductDetailPage product={product} onAdd={(color,size,quantity) => add(product,color,size,quantity)} onWish={() => toggleWish(product.id)} go={go} loggedIn={loggedIn} reviews={reviewList} onSubmitReview={(review) => submitReview(product.id, review)}/>;
+  return <ProductDetailPage key={product.id} product={product} onAdd={(color,size,quantity) => add(product,color,size,quantity)} onWish={() => toggleWish(product.id)} go={go} loggedIn={loggedIn} reviews={reviewList} onSubmitReview={(review) => submitReview(product.id, review)}/>;
 }
 
 function WishlistRoute() {

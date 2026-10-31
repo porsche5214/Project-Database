@@ -31,12 +31,7 @@ class ReviewController extends Controller
                     ->where('product_id', $id)
                     ->value('score') ?? 5;
 
-                $title = '';
-                $text = $rev->comment;
-                if (preg_match('/^\[(.*?)\]\s*(.*)$/s', $rev->comment, $matches)) {
-                    $title = $matches[1];
-                    $text = $matches[2];
-                }
+                [$title, $text] = $rev->splitComment();
 
                 $reviewer = $rev->member
                     ? trim(($rev->member->first_name ?? '') . ' ' . (Str::substr($rev->member->last_name ?? '', 0, 1) . '.'))

@@ -27,4 +27,19 @@ class Review extends Model
 
     public function member() { return $this->belongsTo(Member::class, 'member_id'); }
     public function product() { return $this->belongsTo(Product::class, 'product_id'); }
+
+    /**
+     * A review with a title is stored as "[title] text" in `comment`.
+     *
+     * @return array{0: string, 1: string} [title, text]
+     */
+    public function splitComment(): array
+    {
+        $comment = (string) $this->comment;
+        if (preg_match('/^\[(.*?)\]\s*(.*)$/s', $comment, $matches)) {
+            return [$matches[1], $matches[2]];
+        }
+
+        return ['', $comment];
+    }
 }

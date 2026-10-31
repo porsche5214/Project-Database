@@ -17,8 +17,11 @@ export function Icon({ name, size = 20 }: { name: string; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
 
+// Filled stars follow the score (2.0 = 2 stars, 4.5 = 4½): a full-width
+// row of filled stars is clipped to value/5 on top of a row of empty ones.
 export function Stars({ value, dark = false }: { value: number; dark?: boolean }) {
-  return <span className={`stars ${dark ? "dark" : ""}`} aria-label={`${value} out of 5 stars`}>{"★★★★★"}<small>{value.toFixed(1)}</small></span>;
+  const filled = Math.max(0, Math.min(5, value)) / 5 * 100;
+  return <span className={`stars ${dark ? "dark" : ""}`} aria-label={`${value.toFixed(1)} out of 5 stars`}><span className="stars-track" aria-hidden="true">★★★★★<span className="stars-fill" style={{ width: `${filled}%` }}>★★★★★</span></span><small>{value.toFixed(1)}</small></span>;
 }
 
 export function Button({ children, onClick, variant = "dark", type = "button", disabled = false }: { children: ReactNode; onClick?: () => void; variant?: "dark" | "light" | "outline" | "text"; type?: "button" | "submit"; disabled?: boolean }) {

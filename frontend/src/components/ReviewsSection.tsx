@@ -50,9 +50,10 @@ export default function ReviewsSection({ product, reviews, loggedIn, onLogin, on
     <div className="review-summary">
       {/* product.rating / product.reviews are the server's average score and number of ratings */}
       <div className="score"><strong>{product.rating.toFixed(1)}</strong><Stars value={product.rating}/><span>BASED ON {product.reviews} RATINGS</span></div>
-      <div className="review-overview"><strong>WHAT MEMBERS SAY</strong><p>Considered fits, premium fabrics and everyday pieces reviewed by the NAE MAK community.</p></div>
+      <div className="review-overview"><strong>WHAT MEMBERS SAY</strong>
+        <div className="review-list">{reviews.length ? reviews.map((review) => <article key={review.id}><div><strong>{review.reviewer}</strong><Stars value={review.rating}/></div>{review.title && <h3>{review.title}</h3>}<p>“{review.text}”</p><span>{review.date}</span></article>) : <p className="no-reviews">No written reviews yet. Be the first to share your experience.</p>}</div>
+      </div>
       <div className="write-review">{writeReview}</div>
     </div>
-    <div className="review-list">{reviews.length ? reviews.map((review) => <article key={review.id}><div><strong>{review.reviewer}</strong><Stars value={review.rating}/></div>{review.title && <h3>{review.title}</h3>}<p>“{review.text}”</p><span>{review.date}</span></article>) : <p className="no-reviews">No written reviews yet. Be the first to share your experience.</p>}</div>
   </section>;
 }

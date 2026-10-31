@@ -17,12 +17,13 @@ import {
 } from "react-router-dom";
 import Header from "./components/Header";
 import ProductCard from "./components/ProductCard";
-import { Button, Icon } from "./components/ui";
+import { Icon } from "./components/ui";
 import AccountPage from "./pages/AccountPage";
 import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
+import OrderCompletePage from "./pages/OrderCompletePage";
 import ProductDetailPage from "./pages/ProductDetailPage";
 import ProductsPage from "./pages/ProductsPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -359,16 +360,10 @@ function CheckoutRoute() {
   return <CheckoutPage items={cart} go={go} loggedIn={loggedIn} memberInfo={memberInfo} onSaveInfo={setMemberInfo} onPlaceOrder={handlePlaceOrder}/>;
 }
 
-// Order complete page shown right after checkout.
 function ConfirmationRoute() {
   const { go, lastOrder } = useShop();
   if (!lastOrder) return <Navigate to="/" replace/>;
-  const recipientName = (lastOrder.ship_name || "").toUpperCase();
-  const itemCount = lastOrder.items.reduce((sum, item) => sum + item.quantity, 0);
-
-  return <main className="order-complete">
-    <section className="confirmation"><i><Icon name="check" size={36}/></i><span className="eyebrow">THANK YOU{recipientName ? `, ${recipientName}` : ""}</span><h1>ORDER<br/>COMPLETE.</h1><p>Your order <b>#{lastOrder.order_number}</b> has been placed and completed.<br/>You can review the items you bought right away.</p><div><span>ORDER DATE <b>{lastOrder.formatted_date}</b></span><span>ITEMS <b>{itemCount}</b></span><span>TOTAL <b>฿{Number(lastOrder.total_amount).toLocaleString()}</b></span><span>STATUS <b>{lastOrder.status.toUpperCase()}</b></span></div><nav className="confirmation-actions"><Button onClick={() => go("orders")}>VIEW MY ORDERS</Button><Button variant="outline" onClick={() => go("products")}>CONTINUE SHOPPING</Button></nav></section>
-  </main>;
+  return <OrderCompletePage order={lastOrder} go={go}/>;
 }
 
 function LoginRoute() {

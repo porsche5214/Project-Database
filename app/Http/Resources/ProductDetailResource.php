@@ -42,13 +42,14 @@ class ProductDetailResource extends JsonResource
         $reviews = $this->reviews ? $this->reviews->map(function ($rev) {
             $reviewerName = $rev->member?->username ?? 'Member';
             $ratingScore = $this->ratings()->where('member_id', $rev->member_id)->value('score') ?? 5;
+            [$title, $text] = $rev->splitComment();
             return [
                 'id' => (string) $rev->review_id,
                 'productId' => (int) $rev->product_id,
                 'reviewer' => $reviewerName,
                 'date' => $rev->created_at ? $rev->created_at->format('d M Y') : '',
-                'title' => '',
-                'text' => $rev->comment,
+                'title' => $title,
+                'text' => $text,
                 'rating' => (int) $ratingScore,
             ];
         })->all() : [];

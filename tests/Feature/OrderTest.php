@@ -139,7 +139,9 @@ class OrderTest extends TestCase
             'address_id' => $address->address_id,
         ]);
 
-        $response->assertStatus(422);
+        // Shopper-friendly message: product, color/size and how many are left
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Not enough stock for Test Product (Red / M): only 1 left. Please update your bag.');
 
         $this->assertDatabaseHas('cart_item', [
             'cart_id' => $cart->cart_id,

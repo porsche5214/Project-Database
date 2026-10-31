@@ -47,8 +47,13 @@ class CheckoutService
                     ->lockForUpdate()
                     ->first();
 
-                if (!$variant || $variant->stock < $item->quantity) {
-                    throw new \Exception('Not enough stock for variant ID: ' . $item->variant_id);
+                if (!$variant) {
+                    throw new \Exception('An item in your bag is no longer available. Please remove it and try again.');
+                }
+                if ($variant->stock < $item->quantity) {
+                    $name = $variant->product?->name ?? 'An item';
+                    $left = $variant->stock > 0 ? "only {$variant->stock} left" : 'it is sold out';
+                    throw new \Exception("Not enough stock for {$name} ({$variant->color} / {$variant->size}): {$left}. Please update your bag.");
                 }
 
                 // Decrement stock

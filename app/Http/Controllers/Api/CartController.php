@@ -41,7 +41,7 @@ class CartController extends Controller
         }
 
         if (!$variantId) {
-            return response()->json(['message' => 'Variant not found'], 422);
+            return response()->json(['message' => 'This color / size is not available.'], 422);
         }
 
         $details = $this->cartService->addItem(

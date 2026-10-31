@@ -55,7 +55,7 @@ cp .env.example .env
 ./vendor/bin/sail down           # ปิด container
 ./vendor/bin/sail artisan ...    # แทน php artisan
 ./vendor/bin/sail composer ...   # แทน composer
-./vendor/bin/sail npm ...        # แทน npm
+./vendor/bin/sail npx pnpm --prefix frontend ...   # คำสั่ง pnpm ของ frontend (ดูหัวข้อ "วิธี build frontend")
 ./vendor/bin/sail artisan migrate:fresh --seed   # ล้าง DB แล้วสร้างใหม่ (หลังมีคนแก้ migration)
 ```
 
@@ -124,19 +124,26 @@ migration อยู่ใน `database/migrations/2026_10_10_*` หนึ่ง�
 ---
 
 ## วิธี build frontend
-โปรเจกต์ frontend อยู่ที่โฟลเดอร์ `frontend/Build NaeMak E-commerce Website (Copy)-2/` (React + Vite + TypeScript)
+โปรเจกต์ frontend อยู่ที่โฟลเดอร์ `frontend/` (React + Vite + TypeScript, ใช้ pnpm)
 สามารถติดตั้ง dependencies และ build ผ่าน Docker / Sail โดยไม่ต้องติดตั้ง Node/pnpm บนเครื่อง host:
 
 ```bash
 # 1. ติดตั้ง dependencies ใน frontend ผ่าน Sail
-./vendor/bin/sail npx pnpm --prefix "frontend/Build NaeMak E-commerce Website (Copy)-2" install
+./vendor/bin/sail npx pnpm --prefix frontend install
 
 # 2. Build frontend (ไฟล์จะถูกส่งไปที่ public/spa/ แล้วเปิดดูที่ http://localhost/shop)
-./vendor/bin/sail npx pnpm --prefix "frontend/Build NaeMak E-commerce Website (Copy)-2" build
+./vendor/bin/sail npx pnpm --prefix frontend build
 
 # หรือหากต้องการรัน Vite dev server พร้อม proxy /api
-./vendor/bin/sail npx pnpm --prefix "frontend/Build NaeMak E-commerce Website (Copy)-2" dev --host
+./vendor/bin/sail npx pnpm --prefix frontend dev --host
 ```
+
+โครงสร้างโค้ดใน `frontend/src/`:
+- `pages/` — หน้าละไฟล์ (HomePage, ProductsPage, ProductDetailPage, CartPage, CheckoutPage, OrderCompletePage, LoginPage, RegisterPage, AccountPage, WishlistPage)
+- `components/` — ส่วนที่ใช้ร่วมกัน (Header, ProductCard, ReviewsSection, OrderDetails, AuthForm, Filter, Summary, ui)
+- `api/` — ฟังก์ชันเรียก Laravel API แยกตามเรื่อง
+- `App.tsx` — กำหนด URL ของแต่ละหน้า และ state ที่ทุกหน้าใช้ร่วมกัน (login, ตะกร้า, wishlist)
+- `index.css` — สไตล์ทั้งหมด
 
 > **หมายเหตุ:** ผลลัพธ์ build ใน `public/spa/` ถูกกำหนดไว้ใน `.gitignore` เรียบร้อยแล้ว ห้าม commit ลง Git
 >

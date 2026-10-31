@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 import { authApi } from "../api/auth";
-import { photos } from "../data/products";
+import { photos } from "../assets/photos";
 import type { Page } from "../types/shop";
 import { Button, Field } from "./ui";
 

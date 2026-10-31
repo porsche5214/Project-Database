@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => {
       __ROUTER_BASE__: JSON.stringify(routerBase),
     },
     build: {
-      outDir: path.resolve(__dirname, '../../public/spa'),
+      outDir: path.resolve(__dirname, '../public/spa'),
       emptyOutDir: true,
       sourcemap: emitSourcemaps ? 'inline' : false,
       minify: !emitSourcemaps,

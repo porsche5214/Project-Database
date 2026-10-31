@@ -82,7 +82,8 @@ class OrderTest extends TestCase
             'address_id' => $address->address_id,
         ]);
 
-        $response->assertCreated()->assertJsonPath('order.status', 'pending');
+        // Simulated store: orders are completed as soon as they are placed
+        $response->assertCreated()->assertJsonPath('order.status', 'completed');
 
         $this->assertDatabaseEmpty('cart_item');
 
@@ -98,6 +99,25 @@ class OrderTest extends TestCase
 
         $updatedVariant = DB::table('product_variant')->where('variant_id', $variant->variant_id)->first();
         $this->assertEquals(8, $updatedVariant->stock);
+    }
+
+    public function test_member_can_review_right_after_checkout()
+    {
+        $member = $this->createMember();
+        $address = $this->createAddress($member->member_id);
+        $variant = $this->createVariant(10, 150);
+
+        $this->actingAs($member)->postJson("/api/products/{$variant->product_id}/reviews", ['comment' => 'ยังไม่ได้ซื้อ'])
+            ->assertForbidden();
+
+        $cart = Cart::create(['member_id' => $member->member_id]);
+        CartItem::create(['cart_id' => $cart->cart_id, 'variant_id' => $variant->variant_id, 'quantity' => 1]);
+        $this->actingAs($member)->postJson('/api/checkout', ['address_id' => $address->address_id])->assertCreated();
+
+        $this->actingAs($member)->getJson("/api/products/{$variant->product_id}/eligibility")
+            ->assertJsonPath('can_review', true);
+        $this->actingAs($member)->postJson("/api/products/{$variant->product_id}/reviews", ['comment' => 'ได้ของแล้ว ดีมาก', 'rating' => 5])
+            ->assertCreated();
     }
 
     public function test_checkout_rolls_back_if_stock_insufficient_and_keeps_cart()

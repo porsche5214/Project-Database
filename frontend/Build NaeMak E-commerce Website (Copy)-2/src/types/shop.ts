@@ -1,4 +1,4 @@
-export type Page = "home" | "products" | "detail" | "wishlist" | "cart" | "checkout" | "confirmed" | "login" | "register" | "account" | "admin";
+export type Page = "home" | "products" | "detail" | "wishlist" | "cart" | "checkout" | "confirmed" | "login" | "register" | "account" | "orders" | "admin";
 
 export type Product = {
   id: number; name: string; brand: string; price: number; category: string; gender: string;

@@ -42,6 +42,11 @@ cp .env.example .env
 > **หน้าเว็บหลักคือ React ที่ `/shop`** — URL เดิมของหน้า Blade (`/`, `/products`, `/cart`, `/checkout`, `/profile`, `/login`, ...) จะ redirect ไปหน้า React ที่ตรงกัน ต้อง build frontend ก่อน (ดูหัวข้อ "วิธี build frontend" ด้านล่าง) และ build ใหม่ทุกครั้งที่แก้โค้ดใน `frontend/`
 ถ้า port 80 ชนกับโปรแกรมอื่น ให้ใส่ `APP_PORT=8000` ใน `.env` แล้วเปิด `http://localhost:8000`
 
+> **เว็บช้า?**
+> 1. เช็คว่าโปรเจกต์อยู่ในโฟลเดอร์ของ WSL: รัน `pwd` ถ้าขึ้นต้นด้วย `/mnt/c/` แปลว่าอยู่บนไดรฟ์ Windows ซึ่งช้ากว่าหลายสิบเท่า ให้ clone ใหม่ไว้ที่ `~/...` ใน Ubuntu
+> 2. `compose.yaml` เปิด OPcache (`docker/php/99-opcache.ini`) และให้ PHP รับได้ 4 request พร้อมกัน (`PHP_CLI_SERVER_WORKERS`) หลัง pull การแก้นี้ต้องรัน `./vendor/bin/sail up -d` ใหม่หนึ่งครั้งเพื่อสร้าง container ใหม่ (ข้อมูลใน DB ไม่หาย)
+> 3. วัดความเร็ว: `curl -o /dev/null -s -w "%{time_total}\n" http://localhost/api/products` ปกติควรได้ไม่เกิน 0.2 วินาที
+
 บัญชีตัวอย่างจาก seeder (รหัส `password123`): `admin@naemak.test` (admin), `somchai@naemak.test` (member)
 
 คำสั่งที่ใช้บ่อย (รันแทน `php artisan` / `composer` ตัวเดิม):

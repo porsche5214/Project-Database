@@ -17,8 +17,12 @@ services:
             XDEBUG_MODE: '${SAIL_XDEBUG_MODE:-off}'
             XDEBUG_CONFIG: '${SAIL_XDEBUG_CONFIG:-client_host=host.docker.internal}'
             IGNITION_LOCAL_SITES_PATH: '${PWD}'
+            # Let `artisan serve` handle several requests at once (page + API + images)
+            PHP_CLI_SERVER_WORKERS: '${PHP_CLI_SERVER_WORKERS:-4}'
         volumes:
             - '.:/var/www/html'
+            # Turn on OPcache for `artisan serve` (see docker/php/99-opcache.ini)
+            - './docker/php/99-opcache.ini:/etc/php/8.5/cli/conf.d/99-opcache.ini:ro'
         networks:
             - sail
         depends_on:

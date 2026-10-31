@@ -33,8 +33,8 @@ export function Empty({ title, text, action, onAction }: { title: string; text: 
   return <section className="empty"><div className="empty-icon"><Icon name="bag" size={32}/></div><h1>{title}</h1><p>{text}</p><Button onClick={onAction}>{action}</Button></section>;
 }
 
-export function CheckoutField({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
-  return <label className="field"><span>{label}</span><input type={type} required value={value} onChange={(e) => onChange(e.target.value)}/></label>;
+export function CheckoutField({ label, value, onChange, type = "text", readOnly = false }: { label: string; value: string; onChange: (value: string) => void; type?: string; readOnly?: boolean }) {
+  return <label className="field"><span>{label}</span><input type={type} required value={value} readOnly={readOnly} onChange={(e) => onChange(e.target.value)}/></label>;
 }
 
 export function Field({ label, type = "text", name }: { label: string; type?: string; name?: string }) {

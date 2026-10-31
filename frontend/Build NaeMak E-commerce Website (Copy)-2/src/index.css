@@ -107,6 +107,9 @@ h1,h2 { font-family:"Manrope"; margin:0; letter-spacing:-.045em; line-height:.98
 .swatches button,.color-options button { width:25px; height:25px; border-radius:50%; border:1px solid #bbb; display:block; padding:0; }
 .swatches button.selected { outline:1px solid #000; outline-offset:3px; }
 .swatches .black,.color-options .black { background:#111; }.swatches .white,.color-options .white { background:#fff; }.swatches .gray,.color-options .gray { background:#777; }.swatches .stone,.color-options .stone,.color-options .cream { background:#d7d0c5; }.color-options .charcoal { background:#333; }.color-options .olive { background:#676957; }
+/* Profile: fields are read-only until EDIT PROFILE is pressed */
+.profile-form.locked .field input { background:transparent; border-color:transparent; border-bottom-color:var(--line); cursor:default; padding-left:0; }
+.profile-form.locked .field input:focus { outline:none; box-shadow:none; }
 /* Order complete page */
 .confirmation-actions { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
 /* Order details (account > order history) */

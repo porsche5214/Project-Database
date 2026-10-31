@@ -17,11 +17,14 @@ class ProductDetailResource extends JsonResource
         $colors = $this->variants ? $this->variants->pluck('color')->unique()->values()->all() : [];
         $sizes = $this->variants ? $this->variants->pluck('size')->unique()->values()->all() : [];
 
-        $avgRating = $this->ratings_avg_score !== null
+        // Same as ProductResource: trust withAvg/withCount even when null.
+        $loaded = $this->resource->getAttributes();
+
+        $avgRating = array_key_exists('ratings_avg_score', $loaded)
             ? (float) round((float) $this->ratings_avg_score, 1)
             : (float) round((float) ($this->ratings()->avg('score') ?? 0), 1);
 
-        $reviewsCount = $this->ratings_count !== null
+        $reviewsCount = array_key_exists('ratings_count', $loaded)
             ? (int) $this->ratings_count
             : (int) $this->ratings()->count();
 

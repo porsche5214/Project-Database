@@ -14,6 +14,7 @@ class WishlistController extends Controller
         $products = $request->user()->wishlist()
             ->with(['brand', 'mainImage', 'variants'])
             ->withAvg('ratings', 'score')
+            ->withCount('ratings')
             ->orderByDesc('wishlist.added_at')
             ->get();
 

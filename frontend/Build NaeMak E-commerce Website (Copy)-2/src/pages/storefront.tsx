@@ -6,7 +6,6 @@ import { photos } from "../data/products";
 import { cartItemKey, type CartItem, type MemberInfo, type Page, type Product } from "../types/shop";
 import { Button, CheckoutField, Empty, Field, Icon, SectionTitle, Stars } from "../components/ui";
 import type { ProductReview } from "../types/shop";
-import MemberProgram from "../components/MemberProgram";
 import ReviewsSection from "../components/ReviewsSection";
 
 export function Home({ go, cards }: { go: (p: Page) => void; cards: ReactNode }) {
@@ -305,7 +304,7 @@ export function Auth({ mode, go, onSuccess, message }: { mode: "login" | "regist
 export function Account({ memberInfo, go, onSaveInfo, onLogout, onViewProduct }: { memberInfo: MemberInfo; go: (page: Page) => void; onSaveInfo: (info: MemberInfo) => void; onLogout: () => void; onViewProduct: (productId: number) => void }) {
   // /account?tab=orders opens Order History directly (used by "View my orders" links).
   const [searchParams] = useSearchParams();
-  const [tab, setTab] = useState<"Profile" | "Membership" | "Orders">(searchParams.get("tab") === "orders" ? "Orders" : "Profile");
+  const [tab, setTab] = useState<"Profile" | "Orders">(searchParams.get("tab") === "orders" ? "Orders" : "Profile");
   useEffect(() => { if (searchParams.get("tab") === "orders") setTab("Orders"); }, [searchParams]);
   const [openOrder, setOpenOrder] = useState<number | null>(null);
   const [orders, setOrders] = useState<ApiOrder[]>([]);
@@ -333,15 +332,14 @@ export function Account({ memberInfo, go, onSaveInfo, onLogout, onViewProduct }:
   useEffect(() => { if (!editing) setInfo(memberInfo); }, [memberInfo, editing]);
   const update =(key: keyof MemberInfo, value: string) => setInfo((current) => ({...current, [key]: value}));
   return <main className="account-page">
-    <div className="account-hero"><span className="eyebrow">MEMBER SINCE 2024</span><h1>HELLO, {memberInfo.firstName.toUpperCase()}.</h1><div className="membership-indicator"><span>SILVER MEMBER</span><b>1,250 PTS</b></div></div>
+    <div className="account-hero"><span className="eyebrow">MY ACCOUNT</span><h1>HELLO, {(memberInfo.firstName || "MEMBER").toUpperCase()}.</h1></div>
     <div className="account-layout">
       <aside>
-        {(["Profile","Membership","Orders"] as const).map((item) => <button className={tab === item ? "active" : ""} onClick={() => setTab(item)} key={item}>{item === "Orders" ? "Order History" : item === "Profile" ? "My Profile" : item}<Icon name="chevron"/></button>)}
+        {(["Profile","Orders"] as const).map((item) => <button className={tab === item ? "active" : ""} onClick={() => setTab(item)} key={item}>{item === "Orders" ? "Order History" : "My Profile"}<Icon name="chevron"/></button>)}
         <button onClick={() => go("wishlist")}>Wishlist<Icon name="chevron"/></button>
         <button onClick={onLogout}>Logout<Icon name="arrow"/></button>
       </aside>
       {tab === "Profile" && <section className="profile-panel"><div className="section-title"><div><span className="eyebrow">PERSONAL DETAILS</span><h2>MY PROFILE</h2></div><button onClick={() => setEditing(!editing)}>{editing ? "CANCEL" : "EDIT PROFILE"}</button></div><div className={`profile-form ${editing ? "editing" : "locked"}`}><div className="two-inputs"><CheckoutField label="FIRST NAME" readOnly={!editing} value={info.firstName} onChange={(value) => update("firstName",value)}/><CheckoutField label="LAST NAME" readOnly={!editing} value={info.lastName} onChange={(value) => update("lastName",value)}/></div><CheckoutField label="EMAIL" type="email" readOnly={!editing} value={info.email} onChange={(value) => update("email",value)}/><CheckoutField label="PHONE NUMBER" readOnly={!editing} value={info.phone} onChange={(value) => update("phone",value)}/><CheckoutField label="SAVED ADDRESS" readOnly={!editing} value={info.address} onChange={(value) => update("address",value)}/><div className="two-inputs"><CheckoutField label="CITY / DISTRICT" readOnly={!editing} value={info.city} onChange={(value) => update("city",value)}/><CheckoutField label="PROVINCE / STATE" readOnly={!editing} value={info.province} onChange={(value) => update("province",value)}/></div><div className="two-inputs"><CheckoutField label="POSTAL CODE" readOnly={!editing} value={info.postalCode} onChange={(value) => update("postalCode",value)}/><CheckoutField label="COUNTRY" readOnly={!editing} value={info.country} onChange={(value) => update("country",value)}/></div>{editing && <Button onClick={() => { onSaveInfo(info); setEditing(false); }}>SAVE CHANGES</Button>}</div></section>}
-      {tab === "Membership" && <MemberProgram memberInfo={memberInfo} onOrders={() => setTab("Orders")} onWishlist={() => go("wishlist")}/>}
       {tab === "Orders" && <section className="orders"><div className="section-title"><div><span className="eyebrow">PURCHASES</span><h2>ORDER HISTORY</h2></div></div>{ordersError && <p className="validation">{ordersError}</p>}{ordersState === "loading" && <p className="eyebrow">LOADING ORDERS…</p>}{ordersState === "ready" && !orders.length && <Empty title="No orders yet." text="Your orders will appear here after checkout." action="START SHOPPING" onAction={() => go("products")}/>}{orders.map((ord) => { const open = openOrder === ord.order_id; return <div className="order-entry" key={ord.order_id}><article className="order-card"><div><span>ORDER</span><strong>#{ord.order_number}</strong></div><div><span>DATE</span><strong>{ord.formatted_date || ord.order_date}</strong></div><div><span>TOTAL</span><strong>฿{Number(ord.total_amount).toLocaleString()}</strong></div><div><span>STATUS</span><i className="status">{String(ord.status).toUpperCase()}</i></div><button onClick={() => setOpenOrder(open ? null : ord.order_id)} aria-expanded={open}>{open ? "HIDE DETAILS" : "VIEW DETAILS"} <Icon name={open ? "close" : "arrow"}/></button></article>{open && <OrderDetails order={ord} onConfirmReceived={() => confirmReceived(ord.order_id)} onViewProduct={onViewProduct}/>}</div>; })}</section>}
     </div>
   </main>;

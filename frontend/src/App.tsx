@@ -11,6 +11,7 @@ import {
   Navigate,
   Outlet,
   RouterProvider,
+  useLocation,
   useNavigate,
   useOutletContext,
   useParams,
@@ -56,6 +57,7 @@ type ShopContext = {
   submitReview: (productId: number, review: Pick<ProductReview, "title" | "text" | "rating">) => Promise<boolean>;
   view: (product: Product) => void;
   wishlist: number[];
+  signIn: () => Promise<void>;
   resetSession: () => void;
 };
 
@@ -174,6 +176,26 @@ function ShopLayout() {
 
   const go = (page: Page) => { navigate(pagePaths[page]); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const view = (product: Product) => { navigate(`/products/${product.id}`); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  // Called right after a successful login/sign-up (not on page reload). While a guest,
+  // `cart` only lives in localStorage; push those items into the member's server cart
+  // first, so the loggedIn effect then loads one merged bag instead of replacing it.
+  const signIn = async () => {
+    const user = await authApi.me();
+    if (!user) return;
+    if (!loggedIn && cart.length) {
+      const failed: string[] = [];
+      for (const item of cart) {
+        try {
+          await cartApi.add({ product_id: item.product.id, color: item.color, size: item.size, quantity: item.qty });
+        } catch {
+          failed.push(`${item.product.name} (${item.color} / ${item.size})`);
+        }
+      }
+      if (failed.length) flash(`Could not move to your bag: ${failed.join(", ")}`);
+    }
+    setMemberInfo(mapUserToMemberInfo(user));
+    setLoggedIn(true);
+  };
   const resetSession = () => {
     setLoggedIn(false);
     setWishlist([]);
@@ -236,7 +258,7 @@ function ShopLayout() {
   const cards = (list: Product[]) => list.map((p) => <ProductCard key={p.id} product={p} wishlisted={wishlist.includes(p.id)} onWish={() => toggleWish(p.id)} onView={() => view(p)} onAdd={() => add(p)}/>);
   const context: ShopContext = {
     add, allProducts, productsLoading, cart, cards, filtered, go, flash, authReady, lastOrder, setLastOrder, loggedIn, memberInfo, query, reviews, setReviews,
-    setCart, setLoggedIn, setMemberInfo, setQuery, submitReview, toggleWish, view, wishlist, resetSession,
+    setCart, setLoggedIn, setMemberInfo, setQuery, submitReview, toggleWish, view, wishlist, signIn, resetSession,
   };
 
   return <><Header go={go} cartCount={cart.reduce((s,x)=>s+x.qty,0)} wishCount={wishlist.length} loggedIn={loggedIn} onSearch={(q) => { setQuery(q); go("products"); }}/><Outlet context={context}/>{toast && <div className="toast"><Icon name="check"/>{toast}</div>}</>;
@@ -333,7 +355,8 @@ function CheckoutRoute() {
   if (!authReady) return <Loading/>;
   if (!cart.length && !placed) return <Navigate to="/cart" replace/>;
   // Orders are stored per member on the server, so checkout requires an account.
-  if (!loggedIn) return <Navigate to="/login" replace/>;
+  // `from` brings the shopper back here after logging in.
+  if (!loggedIn) return <Navigate to="/login" replace state={{ from: "/checkout" }}/>;
 
   // Errors propagate to the checkout page, which shows them above the form.
   const handlePlaceOrder = async (info: MemberInfo, payment: string, saveAddress: boolean) => {
@@ -366,36 +389,35 @@ function ConfirmationRoute() {
   return <OrderCompletePage order={lastOrder} go={go}/>;
 }
 
-function LoginRoute() {
-  const { flash, go, setLoggedIn, setMemberInfo } = useShop();
-  return <LoginPage go={go} onSuccess={async () => {
+// Login and sign-up: merge the guest bag (signIn), then return to where the shopper
+// came from, e.g. checkout, instead of always the home page.
+function AuthRoute({ mode }: { mode: "login" | "register" }) {
+  const { flash, go, signIn } = useShop();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = (location.state as { from?: string } | null)?.from;
+  // Switching between login and sign-up keeps the return target.
+  const goKeepingReturn = (page: Page) => page === "login" || page === "register"
+    ? navigate(pagePaths[page], { state: location.state })
+    : go(page);
+  const onSuccess = async () => {
     try {
-      const user = await authApi.me();
-      if (user) {
-        setLoggedIn(true);
-        setMemberInfo(mapUserToMemberInfo(user));
-      }
+      await signIn();
     } catch (err) {
       flash(errorMessage(err, "Could not load your account."));
     }
-    go("home");
-  }}/>;
+    if (returnTo) navigate(returnTo); else go("home");
+  };
+  const AuthPage = mode === "login" ? LoginPage : RegisterPage;
+  return <AuthPage go={goKeepingReturn} onSuccess={onSuccess}/>;
+}
+
+function LoginRoute() {
+  return <AuthRoute mode="login"/>;
 }
 
 function RegisterRoute() {
-  const { flash, go, setLoggedIn, setMemberInfo } = useShop();
-  return <RegisterPage go={go} onSuccess={async () => {
-    try {
-      const user = await authApi.me();
-      if (user) {
-        setLoggedIn(true);
-        setMemberInfo(mapUserToMemberInfo(user));
-      }
-    } catch (err) {
-      flash(errorMessage(err, "Could not load your account."));
-    }
-    go("home");
-  }}/>;
+  return <AuthRoute mode="register"/>;
 }
 
 function AccountRoute() {

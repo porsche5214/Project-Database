@@ -91,6 +91,22 @@ class CartTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrors('quantity');
     }
 
+    public function test_unknown_color_or_size_is_rejected_not_swapped()
+    {
+        $variant = $this->createVariant(); // Red / M
+        $member = $this->createMember();
+
+        $this->actingAs($member)->postJson('/api/cart/add', [
+            'product_id' => $variant->product_id, 'color' => 'Purple', 'size' => 'XXXL', 'quantity' => 1,
+        ])->assertStatus(422);
+        $this->assertDatabaseCount('cart_item', 0);
+
+        // The matching color/size still works
+        $this->actingAs($member)->postJson('/api/cart/add', [
+            'product_id' => $variant->product_id, 'color' => 'Red', 'size' => 'M', 'quantity' => 1,
+        ])->assertOk()->assertJsonPath('cart.items.0.variant_id', $variant->variant_id);
+    }
+
     public function test_cannot_modify_other_members_cart()
     {
         $variant = $this->createVariant();

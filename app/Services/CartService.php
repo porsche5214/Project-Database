@@ -14,7 +14,9 @@ class CartService
      */
     
     /**
-     * Find a variant ID by product_id, color, and size (with fallback).
+     * Find a variant ID by product_id, color, and size.
+     * Returns null when no variant matches, so callers report "not found" instead of
+     * silently using a different color/size.
      */
     public function findVariantId(int $productId, ?string $color = null, ?string $size = null): ?int
     {
@@ -25,11 +27,8 @@ class CartService
         if ($size) {
             $query->where('size', $size);
         }
-        $variant = $query->first();
-        if (!$variant) {
-            $variant = ProductVariant::where('product_id', $productId)->first();
-        }
-        return $variant?->variant_id;
+
+        return $query->value('variant_id');
     }
 
     public function getCartForMember(int $memberId): Cart

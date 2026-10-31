@@ -5,7 +5,7 @@ import type { Page, Product, ProductReview } from "../types/shop";
 
 type StockVariant = { color: string; size: string; stock: number };
 
-export default function ProductDetailPage({ product, onAdd, onWish, go, loggedIn, reviews, onSubmitReview }: { product: Product & { variants?: StockVariant[] }; onAdd: (color: string, size: string, quantity: number) => void; onWish: () => void; go: (p: Page) => void; loggedIn: boolean; reviews: ProductReview[]; onSubmitReview: (review: Pick<ProductReview, "title" | "text" | "rating">) => Promise<boolean> }) {
+export default function ProductDetailPage({ product, onAdd, onWish, go, loggedIn, reviews, onSubmitReview }: { product: Product & { description?: string; variants?: StockVariant[] }; onAdd: (color: string, size: string, quantity: number) => void; onWish: () => void; go: (p: Page) => void; loggedIn: boolean; reviews: ProductReview[]; onSubmitReview: (review: Pick<ProductReview, "title" | "text" | "rating">) => Promise<boolean> }) {
   const variants = product.variants ?? [];
   // Without variant data we can't tell, so assume in stock (the server still rejects over-stock adds).
   const hasStockInfo = variants.length > 0;
@@ -40,7 +40,7 @@ export default function ProductDetailPage({ product, onAdd, onWish, go, loggedIn
         <span className="eyebrow">{product.brand}</span><h1>{product.name}</h1>
         <div className="detail-rating"><Stars value={product.rating}/><span>{reviews.length} REVIEWS</span></div>
         <div className="detail-price">฿{product.price.toLocaleString()}</div>
-        <p className="description">A considered essential made for everyday movement. Cut in a relaxed silhouette from premium structured fabric, balancing clean form with effortless comfort.</p>
+        {product.description && <p className="description">{product.description}</p>}
         <div className="option"><div><b>COLOR</b><span>{color}</span></div><div className="color-options">{product.colors.map((c) => <button key={c} className={`${c.toLowerCase()} ${color === c ? "selected" : ""} ${colorStock(c) <= 0 ? "unavailable" : ""}`} onClick={() => chooseColor(c)} aria-label={colorStock(c) <= 0 ? `${c} (sold out)` : c} title={colorStock(c) <= 0 ? `${c} — sold out` : c}/>)}</div></div>
         <div className="option"><div><b>SELECT SIZE</b><button className="size-guide">SIZE GUIDE</button></div><div className="size-options">{product.sizes.map((s) => { const out = sizeStock(color, s) <= 0; return <button key={s} className={size === s ? "selected" : ""} disabled={out} title={out ? "Sold out" : undefined} onClick={() => chooseSize(s)}>{s}</button>; })}</div>{notice && <p className="validation">{notice}</p>}</div>
         <p className={`stock ${available <= 0 || soldOut ? "out" : ""}`}><i/> {stockText}</p>

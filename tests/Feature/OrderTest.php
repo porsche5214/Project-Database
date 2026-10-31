@@ -120,6 +120,22 @@ class OrderTest extends TestCase
             ->assertCreated();
     }
 
+    public function test_checkout_without_phone_or_address_is_rejected()
+    {
+        $member = $this->createMember(); // no phone on the account
+        $variant = $this->createVariant(10, 150);
+        $cart = Cart::create(['member_id' => $member->member_id]);
+        CartItem::create(['cart_id' => $cart->cart_id, 'variant_id' => $variant->variant_id, 'quantity' => 1]);
+
+        $this->actingAs($member)->postJson('/api/checkout', ['first_name' => 'No', 'last_name' => 'Address'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Please enter a phone number and shipping address.');
+
+        // Nothing was ordered and the stock was not touched
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertEquals(10, DB::table('product_variant')->where('variant_id', $variant->variant_id)->value('stock'));
+    }
+
     public function test_checkout_rolls_back_if_stock_insufficient_and_keeps_cart()
     {
         $member = $this->createMember();

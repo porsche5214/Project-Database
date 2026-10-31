@@ -248,6 +248,8 @@ function ShopLayout() {
         }));
       }
       flash("Review published");
+      // Product cards show the average score too.
+      productsApi.list().then((list) => setAllProducts(list || [])).catch(() => {});
       return true;
     } catch (err: any) {
       flash(errorMessage(err, "Only verified buyers with a completed order can review."));
@@ -309,7 +311,14 @@ function ProductDetailRoute() {
   const product = productDetail;
   const reviewList = reviews[product.id] || [];
 
-  return <ProductDetailPage key={product.id} product={product} onAdd={(color,size,quantity) => add(product,color,size,quantity)} onWish={() => toggleWish(product.id)} go={go} loggedIn={loggedIn} reviews={reviewList} onSubmitReview={(review) => submitReview(product.id, review)}/>;
+  // After a review is saved, reload the product so the average score and rating count update.
+  const handleSubmitReview = async (review: Pick<ProductReview, "title" | "text" | "rating">) => {
+    const ok = await submitReview(product.id, review);
+    if (ok) productsApi.get(product.id).then(setProductDetail).catch(() => {});
+    return ok;
+  };
+
+  return <ProductDetailPage key={product.id} product={product} onAdd={(color,size,quantity) => add(product,color,size,quantity)} onWish={() => toggleWish(product.id)} go={go} loggedIn={loggedIn} reviews={reviewList} onSubmitReview={handleSubmitReview}/>;
 }
 
 function WishlistRoute() {

@@ -1,4 +1,5 @@
-import { ReactNode, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import Filter from "../components/Filter";
 import { Empty, Icon } from "../components/ui";
 import type { Product } from "../types/shop";
@@ -8,8 +9,12 @@ const GENDER_OPTIONS = [{ value: "male", label: "Men" }, { value: "female", labe
 
 export default function ProductsPage({ products, renderCards, query, setQuery }: { products: Product[]; renderCards: (items: Product[]) => ReactNode[]; query: string; setQuery: (v: string) => void }) {
   const [filters, setFilters] = useState(false);
-  const [categories, setCategories] = useState<string[]>([]);
-  const [genders, setGenders] = useState<string[]>([]);
+  // ?category=Hoodie,Sweater&gender=male (e.g. from the home page tiles) pre-selects filters.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const fromUrl = (key: string) => (searchParams.get(key) || "").split(",").filter(Boolean);
+  const [categories, setCategories] = useState<string[]>(() => fromUrl("category"));
+  const [genders, setGenders] = useState<string[]>(() => fromUrl("gender"));
+  useEffect(() => { setCategories(fromUrl("category")); setGenders(fromUrl("gender")); }, [searchParams]);
   const [brands, setBrands] = useState<string[]>([]);
   const [sizes, setSizes] = useState<string[]>([]);
   const [colors, setColors] = useState<string[]>([]);
@@ -52,6 +57,7 @@ export default function ProductsPage({ products, renderCards, query, setQuery }:
   }, [brands, categories, colors, genders, inStockOnly, priceLimit, products, sizes, sort]);
   const activeFilters = categories.length + genders.length + brands.length + sizes.length + colors.length + (inStockOnly ? 1 : 0) + (maxPrice !== null ? 1 : 0);
   const clearFilters = () => {
+    setSearchParams({});
     setQuery("");
     setCategories([]);
     setGenders([]);

@@ -1,5 +1,5 @@
+import AuthForm from "../components/AuthForm";
 import type { Page } from "../types/shop";
-import { Auth } from "./storefront";
 
 type RegisterPageProps = {
   go: (page: Page) => void;
@@ -7,5 +7,5 @@ type RegisterPageProps = {
 };
 
 export default function RegisterPage(props: RegisterPageProps) {
-  return <Auth mode="register" {...props} />;
+  return <AuthForm mode="register" {...props} />;
 }

@@ -1,5 +1,5 @@
+import AuthForm from "../components/AuthForm";
 import type { Page } from "../types/shop";
-import { Auth } from "./storefront";
 
 type LoginPageProps = {
   go: (page: Page) => void;
@@ -7,5 +7,5 @@ type LoginPageProps = {
 };
 
 export default function LoginPage(props: LoginPageProps) {
-  return <Auth mode="login" {...props} />;
+  return <AuthForm mode="login" {...props} />;
 }

@@ -52,7 +52,7 @@ type ShopContext = {
   setMemberInfo: React.Dispatch<React.SetStateAction<MemberInfo>>;
   setQuery: React.Dispatch<React.SetStateAction<string>>;
   toggleWish: (id: number) => void;
-  submitReview: (productId: number, review: Pick<ProductReview, "title" | "text" | "rating">) => void;
+  submitReview: (productId: number, review: Pick<ProductReview, "title" | "text" | "rating">) => Promise<boolean>;
   view: (product: Product) => void;
   wishlist: number[];
   resetSession: () => void;
@@ -69,6 +69,7 @@ const pagePaths: Record<Page, string> = {
   login: "/login",
   register: "/register",
   account: "/account",
+  orders: "/account?tab=orders",
   admin: "/admin",
 };
 
@@ -204,10 +205,11 @@ function ShopLayout() {
     });
     flash(`${p.name} added to bag`);
   };
-  const submitReview = async (productId: number, review: Pick<ProductReview, "title" | "text" | "rating">) => {
+  // Resolves true when the review was saved, so the form only clears on success.
+  const submitReview = async (productId: number, review: Pick<ProductReview, "title" | "text" | "rating">): Promise<boolean> => {
     if (!loggedIn) {
       go("login");
-      return;
+      return false;
     }
     try {
       const res = await reviewsApi.submit(productId, {
@@ -223,8 +225,10 @@ function ShopLayout() {
         }));
       }
       flash("Review published");
+      return true;
     } catch (err: any) {
       flash(errorMessage(err, "Only verified buyers with a completed order can review."));
+      return false;
     }
   };
   const filtered = useMemo(() => allProducts.filter((p) => p.name.toLowerCase().includes(query.toLowerCase())), [query, allProducts]);
@@ -322,8 +326,11 @@ function CartRoute() {
 
 function CheckoutRoute() {
   const { authReady, cart, go, loggedIn, memberInfo, setMemberInfo, setCart, setLastOrder } = useShop();
+  // Set once the order is placed, so emptying the cart doesn't bounce us to /cart
+  // before we land on the order complete page.
+  const [placed, setPlaced] = useState(false);
   if (!authReady) return <Loading/>;
-  if (!cart.length) return <Navigate to="/cart" replace/>;
+  if (!cart.length && !placed) return <Navigate to="/cart" replace/>;
   // Orders are stored per member on the server, so checkout requires an account.
   if (!loggedIn) return <Navigate to="/login" replace/>;
 
@@ -344,19 +351,24 @@ function CheckoutRoute() {
     });
     setLastOrder(res.order);
     if (saveAddress) setMemberInfo(info);
-    setCart([]);
+    setPlaced(true);
     go("confirmed");
+    setCart([]);
   };
 
   return <CheckoutPage items={cart} go={go} loggedIn={loggedIn} memberInfo={memberInfo} onSaveInfo={setMemberInfo} onPlaceOrder={handlePlaceOrder}/>;
 }
 
+// Order complete page shown right after checkout.
 function ConfirmationRoute() {
   const { go, lastOrder } = useShop();
   if (!lastOrder) return <Navigate to="/" replace/>;
   const recipientName = (lastOrder.ship_name || "").toUpperCase();
+  const itemCount = lastOrder.items.reduce((sum, item) => sum + item.quantity, 0);
 
-  return <main><section className="confirmation"><i><Icon name="check" size={36}/></i><span className="eyebrow">THANK YOU{recipientName ? `, ${recipientName}` : ""}</span><h1>ORDER PLACED<br/>SUCCESSFULLY.</h1><p>Your order <b>#{lastOrder.order_number}</b> is confirmed.<br/>We’ll let you know when it’s on its way.</p><div><span>ORDER DATE <b>{lastOrder.formatted_date}</b></span><span>TOTAL <b>฿{Number(lastOrder.total_amount).toLocaleString()}</b></span><span>STATUS <b>{lastOrder.status.toUpperCase()}</b></span></div><Button onClick={() => go("account")}>VIEW MY ORDERS</Button></section></main>;
+  return <main className="order-complete">
+    <section className="confirmation"><i><Icon name="check" size={36}/></i><span className="eyebrow">THANK YOU{recipientName ? `, ${recipientName}` : ""}</span><h1>ORDER<br/>COMPLETE.</h1><p>Your order <b>#{lastOrder.order_number}</b> has been placed and completed.<br/>You can review the items you bought right away.</p><div><span>ORDER DATE <b>{lastOrder.formatted_date}</b></span><span>ITEMS <b>{itemCount}</b></span><span>TOTAL <b>฿{Number(lastOrder.total_amount).toLocaleString()}</b></span><span>STATUS <b>{lastOrder.status.toUpperCase()}</b></span></div><nav className="confirmation-actions"><Button onClick={() => go("orders")}>VIEW MY ORDERS</Button><Button variant="outline" onClick={() => go("products")}>CONTINUE SHOPPING</Button></nav></section>
+  </main>;
 }
 
 function LoginRoute() {
@@ -393,9 +405,10 @@ function RegisterRoute() {
 
 function AccountRoute() {
   const { authReady, flash, go, loggedIn, memberInfo, resetSession, setMemberInfo } = useShop();
+  const navigate = useNavigate();
   if (!authReady) return <Loading/>;
   if (!loggedIn) return <Navigate to="/login" replace/>;
-  return <AccountPage memberInfo={memberInfo} go={go} onSaveInfo={async (info) => {
+  return <AccountPage memberInfo={memberInfo} go={go} onViewProduct={(id) => { navigate(`/products/${id}`); window.scrollTo({ top: 0 }); }} onSaveInfo={async (info) => {
     try {
       const res = await authApi.updateProfile({
         first_name: info.firstName,

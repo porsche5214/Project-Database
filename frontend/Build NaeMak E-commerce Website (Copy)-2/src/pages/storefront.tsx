@@ -1,6 +1,7 @@
 import { authApi } from "../api/auth";
 import { ordersApi, type ApiOrder } from "../api/orders";
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { photos } from "../data/products";
 import { cartItemKey, type CartItem, type MemberInfo, type Page, type Product } from "../types/shop";
 import { Button, CheckoutField, Empty, Field, Icon, SectionTitle, Stars } from "../components/ui";
@@ -111,6 +112,30 @@ export function ProductsPage({ products, renderCards, query, setQuery }: { produ
 }
 
 // Progress of the latest order, driven by its real status.
+// What was ordered, where it ships, and what the member can do next.
+function OrderDetails({ order, onConfirmReceived, onViewProduct }: { order: ApiOrder; onConfirmReceived?: () => void; onViewProduct: (productId: number) => void }) {
+  const subtotal = order.items.reduce((sum, item) => sum + Number(item.line_total), 0);
+  const shipping = Math.max(0, Number(order.total_amount) - subtotal);
+  const completed = order.status === "completed";
+  return <div className="order-details">
+    <OrderTimeline status={order.status}/>
+    {order.status === "shipped" && onConfirmReceived && <div className="order-notice"><p>Your order is on its way. Received it? Confirm delivery to unlock reviews.</p><Button onClick={onConfirmReceived}>MARK AS RECEIVED</Button></div>}
+    {completed && <div className="order-notice"><p>Order complete. You can now review the items below.</p></div>}
+    {(order.status === "pending" || order.status === "paid") && <div className="order-notice"><p>Reviews open after the order is delivered and marked as received.</p></div>}
+    <div className="order-items">{order.items.map((item) => <div className="order-item" key={item.variant_id}>
+      <img src={item.image} alt={item.name}/>
+      <div><span className="eyebrow">{item.brand}</span><strong>{item.name}</strong><span>{item.color} / {item.size} · QTY {item.quantity} × ฿{Number(item.unit_price).toLocaleString()}</span></div>
+      <b>฿{Number(item.line_total).toLocaleString()}</b>
+      <button onClick={() => onViewProduct(item.product_id)}>{completed ? "WRITE A REVIEW" : "VIEW PRODUCT"} <Icon name="arrow"/></button>
+    </div>)}</div>
+    <div className="order-meta">
+      <div><span>SHIP TO</span><strong>{order.ship_name}</strong><p>{order.ship_address}</p><p>{order.ship_phone}</p></div>
+      <div><span>CONTACT</span><p>{order.contact_email}</p></div>
+      <div className="order-totals"><span>PAYMENT SUMMARY</span><p><em>Subtotal</em><b>฿{subtotal.toLocaleString()}</b></p><p><em>Shipping</em><b>{shipping ? `฿${shipping.toLocaleString()}` : "FREE"}</b></p><p className="grand"><em>Total</em><b>฿{Number(order.total_amount).toLocaleString()}</b></p></div>
+    </div>
+  </div>;
+}
+
 function OrderTimeline({ status }: { status: string }) {
   if (status === "cancelled") {
     return <div className="timeline"><div className="done"><i><Icon name="check"/></i><strong>ORDER CANCELLED</strong><span>STOCK RETURNED</span></div></div>;
@@ -129,7 +154,7 @@ export function Filter({ title, options, selected, onToggle, chips = false, labe
 
 type StockVariant = { color: string; size: string; stock: number };
 
-export function ProductDetail({ product, onAdd, onWish, go, loggedIn, reviews, onSubmitReview }: { product: Product & { variants?: StockVariant[] }; onAdd: (color: string, size: string, quantity: number) => void; onWish: () => void; go: (p: Page) => void; loggedIn: boolean; reviews: ProductReview[]; onSubmitReview: (review: Pick<ProductReview, "title" | "text" | "rating">) => void }) {
+export function ProductDetail({ product, onAdd, onWish, go, loggedIn, reviews, onSubmitReview }: { product: Product & { variants?: StockVariant[] }; onAdd: (color: string, size: string, quantity: number) => void; onWish: () => void; go: (p: Page) => void; loggedIn: boolean; reviews: ProductReview[]; onSubmitReview: (review: Pick<ProductReview, "title" | "text" | "rating">) => Promise<boolean> }) {
   const variants = product.variants ?? [];
   // Without variant data we can't tell, so assume in stock (the server still rejects over-stock adds).
   const hasStockInfo = variants.length > 0;
@@ -162,7 +187,7 @@ export function ProductDetail({ product, onAdd, onWish, go, loggedIn, reviews, o
       <div className="gallery"><div className="thumbs">{[0,1,2].map((x) => <button key={x}><img src={product.image} alt=""/></button>)}</div><div className="main-image"><img src={product.image} alt={product.name}/><span>HOVER TO ZOOM</span></div></div>
       <div className="detail-info">
         <span className="eyebrow">{product.brand}</span><h1>{product.name}</h1>
-        <div className="detail-rating"><Stars value={product.rating}/><span>{product.reviews + reviews.length} REVIEWS</span></div>
+        <div className="detail-rating"><Stars value={product.rating}/><span>{reviews.length} REVIEWS</span></div>
         <div className="detail-price">฿{product.price.toLocaleString()}</div>
         <p className="description">A considered essential made for everyday movement. Cut in a relaxed silhouette from premium structured fabric, balancing clean form with effortless comfort.</p>
         <div className="option"><div><b>COLOR</b><span>{color}</span></div><div className="color-options">{product.colors.map((c) => <button key={c} className={`${c.toLowerCase()} ${color === c ? "selected" : ""} ${colorStock(c) <= 0 ? "unavailable" : ""}`} onClick={() => chooseColor(c)} aria-label={colorStock(c) <= 0 ? `${c} (sold out)` : c} title={colorStock(c) <= 0 ? `${c} — sold out` : c}/>)}</div></div>
@@ -173,7 +198,7 @@ export function ProductDetail({ product, onAdd, onWish, go, loggedIn, reviews, o
         <div className="detail-notes"><span>COMPLIMENTARY DELIVERY<br/><small>On all orders over ฿2,500</small></span><span>EASY RETURNS<br/><small>Within 14 days of delivery</small></span></div>
       </div>
     </div>
-    <ReviewsSection product={product} reviews={reviews} loggedIn={loggedIn} onLogin={() => go("login")} onSubmit={onSubmitReview}/>
+    <ReviewsSection product={product} reviews={reviews} loggedIn={loggedIn} onLogin={() => go("login")} onOrders={() => go("orders")} onSubmit={onSubmitReview}/>
   </main>;
 }
 
@@ -278,8 +303,12 @@ export function Auth({ mode, go, onSuccess, message }: { mode: "login" | "regist
   return <main className="auth-page"><div className="auth-image"><img src={photos[7]} alt="NaeMak campaign"/><span>BE BOLD.<br/>BE NAEMAK.</span></div><form className={`auth-form auth-form-${mode}`} onSubmit={submit}><span className="eyebrow">NAEMAK MEMBERS</span><h1>{mode === "login" ? "WELCOME BACK" : "CREATE ACCOUNT"}</h1><p>{errorText || message || (mode === "login" ? "Log in to access your wardrobe, orders and wishlist." : "Join NaeMak for a more personal shopping experience.")}</p>{mode === "register" && <div className="two-inputs"><Field label="FIRST NAME" name="firstName"/><Field label="LAST NAME" name="lastName"/></div>}<Field label={mode === "login" ? "USERNAME OR EMAIL" : "USERNAME"} name="username" type="text"/>{mode === "register" && <Field label="EMAIL" name="email" type="email"/>}<Field label="PASSWORD" name="password" type="password"/>{mode === "register" && <><Field label="CONFIRM PASSWORD" name="confirmPassword" type="password"/><Field label="PHONE" name="phone"/><Field label="ADDRESS" name="address"/></>}<div className="auth-extra">{mode === "login" && <label><input type="checkbox"/> Remember me</label>}<button type="button">{mode === "login" ? "Forgot Password?" : "Privacy policy"}</button></div><Button type="submit" disabled={loading}>{mode === "login" ? "LOG IN" : "CREATE ACCOUNT"}</Button><div className="auth-switch">{mode === "login" ? "NEW TO NAEMAK?" : "ALREADY HAVE AN ACCOUNT?"}<button type="button" onClick={() => go(mode === "login" ? "register" : "login")}>{mode === "login" ? "CREATE AN ACCOUNT" : "LOG IN"}</button></div></form></main>;
 }
 
-export function Account({ memberInfo, go, onSaveInfo, onLogout }: { memberInfo: MemberInfo; go: (page: Page) => void; onSaveInfo: (info: MemberInfo) => void; onLogout: () => void }) {
-  const [tab, setTab] = useState<"Profile" | "Membership" | "Orders">("Profile");
+export function Account({ memberInfo, go, onSaveInfo, onLogout, onViewProduct }: { memberInfo: MemberInfo; go: (page: Page) => void; onSaveInfo: (info: MemberInfo) => void; onLogout: () => void; onViewProduct: (productId: number) => void }) {
+  // /account?tab=orders opens Order History directly (used by "View my orders" links).
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<"Profile" | "Membership" | "Orders">(searchParams.get("tab") === "orders" ? "Orders" : "Profile");
+  useEffect(() => { if (searchParams.get("tab") === "orders") setTab("Orders"); }, [searchParams]);
+  const [openOrder, setOpenOrder] = useState<number | null>(null);
   const [orders, setOrders] = useState<ApiOrder[]>([]);
   const [ordersState, setOrdersState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [ordersError, setOrdersError] = useState("");
@@ -312,7 +341,7 @@ export function Account({ memberInfo, go, onSaveInfo, onLogout }: { memberInfo: 
       </aside>
       {tab === "Profile" && <section className="profile-panel"><div className="section-title"><div><span className="eyebrow">PERSONAL DETAILS</span><h2>MY PROFILE</h2></div><button onClick={() => setEditing(!editing)}>{editing ? "CANCEL" : "EDIT PROFILE"}</button></div><div className="profile-form"><div className="two-inputs"><CheckoutField label="FIRST NAME" value={info.firstName} onChange={(value) => update("firstName",value)}/><CheckoutField label="LAST NAME" value={info.lastName} onChange={(value) => update("lastName",value)}/></div><CheckoutField label="EMAIL" type="email" value={info.email} onChange={(value) => update("email",value)}/><CheckoutField label="PHONE NUMBER" value={info.phone} onChange={(value) => update("phone",value)}/><CheckoutField label="SAVED ADDRESS" value={info.address} onChange={(value) => update("address",value)}/><div className="two-inputs"><CheckoutField label="CITY / DISTRICT" value={info.city} onChange={(value) => update("city",value)}/><CheckoutField label="PROVINCE / STATE" value={info.province} onChange={(value) => update("province",value)}/></div><div className="two-inputs"><CheckoutField label="POSTAL CODE" value={info.postalCode} onChange={(value) => update("postalCode",value)}/><CheckoutField label="COUNTRY" value={info.country} onChange={(value) => update("country",value)}/></div>{editing && <Button onClick={() => { onSaveInfo(info); setEditing(false); }}>SAVE CHANGES</Button>}</div></section>}
       {tab === "Membership" && <MemberProgram memberInfo={memberInfo} onOrders={() => setTab("Orders")} onWishlist={() => go("wishlist")}/>}
-      {tab === "Orders" && <section className="orders"><div className="section-title"><div><span className="eyebrow">PURCHASES</span><h2>ORDER HISTORY</h2></div></div>{ordersError && <p className="validation">{ordersError}</p>}{ordersState === "loading" && <p className="eyebrow">LOADING ORDERS…</p>}{ordersState === "ready" && !orders.length && <Empty title="No orders yet." text="Your orders will appear here after checkout." action="START SHOPPING" onAction={() => go("products")}/>}{orders.map((ord) => (<article className="order-card" key={ord.order_id}><div><span>ORDER</span><strong>#{ord.order_number}</strong></div><div><span>DATE</span><strong>{ord.formatted_date || ord.order_date}</strong></div><div><span>TOTAL</span><strong>฿{Number(ord.total_amount).toLocaleString()}</strong></div><div><span>STATUS</span><i className="status">{String(ord.status).toUpperCase()}</i></div>{ord.status === "shipped" ? <button onClick={() => confirmReceived(ord.order_id)}>MARK AS RECEIVED <Icon name="check"/></button> : <span/>}</article>))}{orders[0] && <OrderTimeline status={orders[0].status}/>}</section>}
+      {tab === "Orders" && <section className="orders"><div className="section-title"><div><span className="eyebrow">PURCHASES</span><h2>ORDER HISTORY</h2></div></div>{ordersError && <p className="validation">{ordersError}</p>}{ordersState === "loading" && <p className="eyebrow">LOADING ORDERS…</p>}{ordersState === "ready" && !orders.length && <Empty title="No orders yet." text="Your orders will appear here after checkout." action="START SHOPPING" onAction={() => go("products")}/>}{orders.map((ord) => { const open = openOrder === ord.order_id; return <div className="order-entry" key={ord.order_id}><article className="order-card"><div><span>ORDER</span><strong>#{ord.order_number}</strong></div><div><span>DATE</span><strong>{ord.formatted_date || ord.order_date}</strong></div><div><span>TOTAL</span><strong>฿{Number(ord.total_amount).toLocaleString()}</strong></div><div><span>STATUS</span><i className="status">{String(ord.status).toUpperCase()}</i></div><button onClick={() => setOpenOrder(open ? null : ord.order_id)} aria-expanded={open}>{open ? "HIDE DETAILS" : "VIEW DETAILS"} <Icon name={open ? "close" : "arrow"}/></button></article>{open && <OrderDetails order={ord} onConfirmReceived={() => confirmReceived(ord.order_id)} onViewProduct={onViewProduct}/>}</div>; })}</section>}
     </div>
   </main>;
 }

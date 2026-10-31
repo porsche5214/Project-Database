@@ -123,7 +123,8 @@ class CheckoutService
                 }
             }
 
-            // Create order
+            // Create order. This is a simulated store (no real payment or shipping step),
+            // so a placed order counts as delivered right away and its items can be reviewed.
             $order = Order::create([
                 'member_id' => $member->member_id,
                 'contact_email' => $contactEmail,
@@ -131,7 +132,7 @@ class CheckoutService
                 'ship_phone' => $shipPhone,
                 'ship_address' => $shipAddress,
                 'total_amount' => $totalAmount,
-                'status' => 'pending',
+                'status' => 'completed',
             ]);
 
             // Create order items

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Button, Icon, SectionTitle } from "../components/ui";
-import { photos } from "../data/products";
+import { photos } from "../assets/photos";
 import type { Page } from "../types/shop";
 
 export default function HomePage({ go, cards }: { go: (p: Page) => void; cards: ReactNode }) {

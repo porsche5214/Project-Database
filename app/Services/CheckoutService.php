@@ -98,7 +98,7 @@ class CheckoutService
                     $shipName = trim("{$member->first_name} {$member->last_name}") ?: $member->username;
                 }
 
-                $shipPhone = $shippingData['ship_phone'] ?? ($shippingData['phone'] ?? $member->phone ?? '0000000000');
+                $shipPhone = $shippingData['ship_phone'] ?? ($shippingData['phone'] ?? $member->phone ?? '');
 
                 $addrLine = $shippingData['address'] ?? ($shippingData['address_line'] ?? '');
                 $city = $shippingData['city'] ?? ($shippingData['district'] ?? '');
@@ -106,9 +106,15 @@ class CheckoutService
                 $postalCode = $shippingData['postalCode'] ?? ($shippingData['postal_code'] ?? '');
                 $country = $shippingData['country'] ?? 'Thailand';
 
-                $shipAddress = $shippingData['ship_address'] ?? trim(implode(', ', array_filter([$addrLine, $city, $province, $postalCode, $country])));
-                if (empty($shipAddress)) {
-                    $shipAddress = 'Bangkok, Thailand';
+                $shipAddress = $shippingData['ship_address'] ?? ($addrLine
+                    ? trim(implode(', ', array_filter([$addrLine, $city, $province, $postalCode, $country])))
+                    : '');
+
+                // Never ship to a made-up phone number or address.
+                if (trim((string) $shipPhone) === '' || trim($shipAddress) === '') {
+                    throw ValidationException::withMessages([
+                        'address' => ['Please enter a phone number and shipping address.'],
+                    ]);
                 }
 
                 // If save_address requested, persist to address table

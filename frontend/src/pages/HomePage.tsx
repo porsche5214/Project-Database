@@ -1,10 +1,22 @@
 import type { ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button, Icon, SectionTitle } from "../components/ui";
 import { photos } from "../assets/photos";
 import type { Page } from "../types/shop";
 
+// Each tile opens the products page with matching filters (read by ProductsPage from the URL).
+const CATEGORY_TILES = [
+  { label: "Men", query: "gender=male" },
+  { label: "Women", query: "gender=female" },
+  { label: "T-Shirts", query: "category=T-shirt" },
+  { label: "Outerwear", query: "category=Hoodie,Sweater" },
+  { label: "Pants & Skirts", query: "category=Pants,Skirt" },
+  { label: "Shoes", query: "category=Lifestyle,Sport" },
+];
+
 export default function HomePage({ go, cards }: { go: (p: Page) => void; cards: ReactNode }) {
-  const categories = ["Men", "Women", "Unisex", "T-Shirts", "Outerwear", "Accessories"];
+  const navigate = useNavigate();
+  const openCategory = (query: string) => { navigate(`/products?${query}`); window.scrollTo({ top: 0 }); };
   return <main>
     <section className="hero">
       <img src={photos[4]} alt="NaeMak monochrome streetwear campaign"/>
@@ -15,7 +27,7 @@ export default function HomePage({ go, cards }: { go: (p: Page) => void; cards: 
     <section className="marquee"><span>NEW FORMS</span><i/> <span>MADE IN BANGKOK</span><i/> <span>EVERYDAY ICONS</span><i/> <span>UNCOMPROMISED FIT</span></section>
     <section className="section">
       <SectionTitle kicker="SHOP BY" title="CATEGORIES" action="VIEW ALL" onAction={() => go("products")}/>
-      <div className="category-grid">{categories.map((c, i) => <button className={`category-card c${i}`} key={c} onClick={() => go("products")}><img src={photos[(i + 1) % photos.length]} alt=""/><span>{c}</span><i><Icon name="arrow"/></i></button>)}</div>
+      <div className="category-grid">{CATEGORY_TILES.map((c, i) => <button className={`category-card c${i}`} key={c.label} onClick={() => openCategory(c.query)}><img src={photos[(i + 1) % photos.length]} alt=""/><span>{c.label}</span><i><Icon name="arrow"/></i></button>)}</div>
     </section>
     <section className="section product-section">
       <SectionTitle kicker="THE EDIT" title="FEATURED PIECES" action="SHOP ALL" onAction={() => go("products")}/>

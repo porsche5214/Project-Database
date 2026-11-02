@@ -235,6 +235,13 @@ function ShopLayout() {
       return false;
     }
     try {
+      // Stars without text: save the rating only (rating table), no written review.
+      if (!review.text.trim()) {
+        await reviewsApi.rate(productId, review.rating);
+        flash("Rating saved");
+        productsApi.list().then((list) => setAllProducts(list || [])).catch(() => {});
+        return true;
+      }
       const res = await reviewsApi.submit(productId, {
         title: review.title,
         text: review.text,

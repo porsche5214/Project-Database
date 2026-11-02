@@ -8,30 +8,42 @@ export default function ReviewsSection({ product, reviews, loggedIn, onLogin, on
   const [text, setText] = useState("");
   const [rating, setRating] = useState(5);
   const [submitting, setSubmitting] = useState(false);
+  const [notice, setNotice] = useState("");
   // Only members with a completed order containing this product may review (checked by the API too).
   const [canReview, setCanReview] = useState<boolean | null>(null);
+  // The member's current star score for this product, if they rated it before.
+  const [myScore, setMyScore] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!loggedIn) { setCanReview(null); return; }
+    if (!loggedIn) { setCanReview(null); setMyScore(null); return; }
     let active = true;
     setCanReview(null);
     reviewsApi.eligibility(product.id)
-      .then((res) => { if (active) setCanReview(!!res?.can_review); })
+      .then((res) => {
+        if (!active) return;
+        setCanReview(!!res?.can_review);
+        setMyScore(res?.my_score ?? null);
+        if (res?.my_score) setRating(res.my_score);
+      })
       .catch(() => { if (active) setCanReview(false); });
     return () => { active = false; };
   }, [product.id, loggedIn]);
 
+  // Stars alone are enough; the written review is optional.
+  const ratingOnly = !text.trim();
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!text.trim() || submitting) return;
+    if (submitting) return;
+    if (ratingOnly && title.trim()) { setNotice("Add a few words to go with your title, or clear the title to just rate."); return; }
+    setNotice("");
     setSubmitting(true);
     const ok = await onSubmit({ title: title.trim() || undefined, text: text.trim(), rating });
     setSubmitting(false);
     // Keep what the member typed if the server rejected it.
     if (!ok) return;
+    setMyScore(rating);
     setTitle("");
     setText("");
-    setRating(5);
   };
 
   let writeReview;
@@ -42,7 +54,7 @@ export default function ReviewsSection({ product, reviews, loggedIn, onLogin, on
   } else if (!canReview) {
     writeReview = <><strong>WRITE A REVIEW</strong><p>Reviews are open to verified buyers. You can review this item once an order containing it has been delivered — press “Mark as received” in your order history when it arrives.</p><Button variant="outline" onClick={onOrders}>VIEW MY ORDERS</Button></>;
   } else {
-    writeReview = <form onSubmit={submit}><strong>WRITE A REVIEW</strong><label><span>RATING</span><span className="review-stars" aria-label={`${rating} out of 5 stars`}>{[1,2,3,4,5].map((value) => <button type="button" key={value} className={value <= rating ? "active" : ""} onClick={() => setRating(value)} aria-label={`${value} stars`} aria-pressed={value === rating}>★</button>)}</span></label><label><span>REVIEW TITLE <small>OPTIONAL</small></span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Summarize your review"/></label><label><span>REVIEW</span><textarea required value={text} onChange={(event) => setText(event.target.value)} placeholder="Share your experience"/></label><Button type="submit" disabled={!text.trim() || submitting}>{submitting ? "SUBMITTING…" : "SUBMIT REVIEW"}</Button></form>;
+    writeReview = <form onSubmit={submit}><strong>WRITE A REVIEW</strong><label><span>RATING</span><span className="review-stars" aria-label={`${rating} out of 5 stars`}>{[1,2,3,4,5].map((value) => <button type="button" key={value} className={value <= rating ? "active" : ""} onClick={() => setRating(value)} aria-label={`${value} stars`} aria-pressed={value === rating}>★</button>)}</span></label><label><span>REVIEW TITLE <small>OPTIONAL</small></span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Summarize your review"/></label><label><span>REVIEW <small>OPTIONAL</small></span><textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Share your experience — or leave empty to just rate"/></label>{myScore && <p>Your current rating: {myScore} ★ — submit again to change it.</p>}{notice && <p className="validation">{notice}</p>}<Button type="submit" disabled={submitting}>{submitting ? "SUBMITTING…" : ratingOnly ? "SUBMIT RATING" : "SUBMIT REVIEW"}</Button></form>;
   }
 
   return <section className="reviews-section">

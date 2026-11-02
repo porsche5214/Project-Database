@@ -148,6 +148,22 @@ class ApiReviewTest extends TestCase
         ]);
     }
 
+    public function test_member_can_rate_without_writing_a_review(): void
+    {
+        // somchai's seeded order 1 is completed and contains product 1
+        $somchai = Member::where('username', 'somchai')->first();
+
+        $this->actingAs($somchai)->postJson('/api/products/1/rating', ['score' => 3])
+            ->assertOk()
+            ->assertJsonPath('ratings_count', 1);
+
+        // The score counts, but no empty written review is created
+        $this->assertDatabaseHas('rating', ['member_id' => $somchai->member_id, 'product_id' => 1, 'score' => 3]);
+        $this->assertDatabaseMissing('review', ['member_id' => $somchai->member_id, 'product_id' => 1]);
+        $this->getJson('/api/products/1')->assertJsonPath('reviews', 1)->assertJsonPath('reviews_list', []);
+        $this->actingAs($somchai)->getJson('/api/products/1/eligibility')->assertJsonPath('my_score', 3);
+    }
+
     public function test_public_can_view_product_reviews(): void
     {
         // Seeded review exists for product 3
